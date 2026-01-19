@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vibe Scraper - Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🌊 Vibe Scraper Settings</h1>
+      <p>Configure your scraping jobs and preferences</p>
+    </header>
+
+    <div class="content">
+      <aside class="sidebar">
+        <nav>
+          <button class="nav-item active" data-tab="jobs">
+            📋 Jobs
+          </button>
+          <button class="nav-item" data-tab="permissions">
+            🔒 Permissions
+          </button>
+          <button class="nav-item" data-tab="settings">
+            ⚙️ Settings
+          </button>
+          <button class="nav-item" data-tab="help">
+            ❓ Help
+          </button>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <!-- Jobs Tab -->
+        <div id="jobs-tab" class="tab-content active">
+          <div class="tab-header">
+            <h2>Scraping Jobs</h2>
+            <button id="new-job-btn" class="primary-btn">+ New Job</button>
+          </div>
+
+          <div id="jobs-list" class="jobs-grid"></div>
+
+          <div id="job-editor" class="editor hidden">
+            <div class="editor-header">
+              <h3 id="editor-title">New Job</h3>
+              <button id="close-editor-btn" class="icon-btn">✕</button>
+            </div>
+
+            <form id="job-form" class="job-form">
+              <div class="form-section">
+                <h4>Basic Information</h4>
+                
+                <div class="form-group">
+                  <label for="job-id">Job ID *</label>
+                  <input type="text" id="job-id" required placeholder="e.g., products-scraper">
+                  <small>Unique identifier for this job</small>
+                </div>
+
+                <div class="form-group">
+                  <label for="start-url">Start URL *</label>
+                  <input type="url" id="start-url" required placeholder="https://example.com/products">
+                  <small>URL where scraping begins</small>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>Scraping Mode</h4>
+                
+                <div class="mode-selector" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 15px 0 20px 0;">
+                  <label class="mode-option" style="cursor: pointer; display: block;">
+                    <input type="radio" name="scraping-mode" value="single" id="mode-single" checked style="position: absolute; opacity: 0;">
+                    <div class="mode-card" style="border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; background: white; display: flex; align-items: center; gap: 12px; min-height: 80px;">
+                      <div class="mode-icon" style="font-size: 32px; width: 40px; text-align: center;">📄</div>
+                      <div class="mode-info" style="flex: 1;">
+                        <div class="mode-title" style="font-weight: 600; font-size: 14px; color: #333; margin-bottom: 4px;">Single Page</div>
+                        <div class="mode-desc" style="font-size: 12px; color: #666;">Scrape current page only</div>
+                      </div>
+                    </div>
+                  </label>
+
+                  <label class="mode-option" style="cursor: pointer; display: block;">
+                    <input type="radio" name="scraping-mode" value="pagination" id="mode-pagination" style="position: absolute; opacity: 0;">
+                    <div class="mode-card" style="border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; background: white; display: flex; align-items: center; gap: 12px; min-height: 80px;">
+                      <div class="mode-icon" style="font-size: 32px; width: 40px; text-align: center;">📄</div>
+                      <div class="mode-info" style="flex: 1;">
+                        <div class="mode-title" style="font-weight: 600; font-size: 14px; color: #333; margin-bottom: 4px;">Pagination</div>
+                        <div class="mode-desc" style="font-size: 12px; color: #666;">Auto-navigate with Next button</div>
+                      </div>
+                    </div>
+                  </label>
+
+                  <label class="mode-option" style="cursor: pointer; display: block;">
+                    <input type="radio" name="scraping-mode" value="infinite-scroll" id="mode-infinite-scroll" style="position: absolute; opacity: 0;">
+                    <div class="mode-card" style="border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; background: white; display: flex; align-items: center; gap: 12px; min-height: 80px;">
+                      <div class="mode-icon" style="font-size: 32px; width: 40px; text-align: center;">♾️</div>
+                      <div class="mode-info" style="flex: 1;">
+                        <div class="mode-title" style="font-weight: 600; font-size: 14px; color: #333; margin-bottom: 4px;">Infinite Scroll</div>
+                        <div class="mode-desc" style="font-size: 12px; color: #666;">Auto-scroll to load more</div>
+                      </div>
+                    </div>
+                  </label>
+
+                  <label class="mode-option" style="cursor: pointer; display: block;">
+                    <input type="radio" name="scraping-mode" value="load-more" id="mode-load-more" style="position: absolute; opacity: 0;">
+                    <div class="mode-card" style="border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; background: white; display: flex; align-items: center; gap: 12px; min-height: 80px;">
+                      <div class="mode-icon" style="font-size: 32px; width: 40px; text-align: center;">🔄</div>
+                      <div class="mode-info" style="flex: 1;">
+                        <div class="mode-title" style="font-weight: 600; font-size: 14px; color: #333; margin-bottom: 4px;">Load More Button</div>
+                        <div class="mode-desc" style="font-size: 12px; color: #666;">Click button to load more</div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>Pagination Settings</h4>
+                
+                <div class="form-group">
+                  <label>
+                    <input type="checkbox" id="enable-pagination">
+                    Enable Pagination
+                  </label>
+                </div>
+
+                <div id="pagination-settings" class="nested-settings hidden">
+                  <div class="form-group">
+                    <label for="pagination-type">Type</label>
+                    <select id="pagination-type">
+                      <option value="queryParam">URL Query Parameter</option>
+                      <option value="button">Next Button</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group" id="query-param-group">
+                    <label for="pagination-param">Parameter Name</label>
+                    <input type="text" id="pagination-param" placeholder="page" value="page">
+                  </div>
+
+                  <div class="form-group hidden" id="button-selector-group">
+                    <label for="next-button-selector">Next Button Selector</label>
+                    <input type="text" id="next-button-selector" placeholder=".next-button">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="max-pages">Max Pages</label>
+                    <input type="number" id="max-pages" value="10" min="1">
+                  </div>
+
+                  <div class="form-group">
+                    <label>
+                      <input type="checkbox" id="stop-on-no-items" checked>
+                      Stop when no new items found
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>Infinite Scroll</h4>
+                
+                <div class="form-group">
+                  <label>
+                    <input type="checkbox" id="enable-infinite-scroll">
+                    Enable Infinite Scroll
+                  </label>
+                </div>
+
+                <div id="scroll-settings" class="nested-settings hidden">
+                  <div class="form-group">
+                    <label for="max-scrolls">Max Scrolls</label>
+                    <input type="number" id="max-scrolls" value="20" min="1">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>Load More Button</h4>
+                
+                <div class="form-group">
+                  <label>
+                    <input type="checkbox" id="enable-load-more">
+                    Enable Load More Button
+                  </label>
+                </div>
+
+                <div id="load-more-settings" class="nested-settings hidden">
+                  <div class="form-group">
+                    <label for="load-more-button-selector">Load More Button Selector *</label>
+                    <input type="text" id="load-more-button-selector" placeholder=".load-more, button.show-more">
+                    <small>CSS selector for the "Load More" button</small>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="max-load-more-clicks">Max Clicks</label>
+                    <input type="number" id="max-load-more-clicks" value="10" min="1" max="100">
+                    <small>Maximum number of times to click Load More button</small>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="load-more-delay">Click Delay (ms)</label>
+                    <input type="number" id="load-more-delay" value="2000" min="500" max="10000" step="500">
+                    <small>Wait time after clicking Load More (allow items to load)</small>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>Item Selection</h4>
+                
+                <div class="info-box" style="background: #e8f5e9; border-color: #4CAF50;">
+                  <p style="color: #2e7d32;">
+                    💡 <strong>Quick Setup:</strong><br>
+                    1. Navigate to the page you want to scrape in another tab<br>
+                    2. Come back here and enter that URL below<br>
+                    3. Click "Smart Picker" - it will activate on that page!<br>
+                    4. Click on an item → fields auto-detected!
+                  </p>
+                </div>
+
+                <div class="form-group">
+                  <label for="item-selector">Item Selector (CSS) *</label>
+                  <div class="input-group">
+                    <input type="text" id="item-selector" required placeholder=".product-card">
+                    <button type="button" id="smart-picker-btn" class="primary-btn" style="white-space: nowrap;">
+                      🎯 Smart Picker
+                    </button>
+                  </div>
+                  <small>CSS selector for each item on the page</small>
+                </div>
+
+                <div class="form-group">
+                  <h5>Fields to Extract</h5>
+                  <div id="fields-list"></div>
+                  <button type="button" id="add-field-btn" class="secondary-btn">+ Add Field</button>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>Delays & Rate Limiting</h4>
+                
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="delay-min">Min Delay (ms)</label>
+                    <input type="number" id="delay-min" value="1000" min="0">
+                  </div>
+                  <div class="form-group">
+                    <label for="delay-max">Max Delay (ms)</label>
+                    <input type="number" id="delay-max" value="2000" min="0">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>Export Settings</h4>
+                
+                <div class="form-group">
+                  <label for="export-format">Format</label>
+                  <select id="export-format">
+                    <option value="csv">CSV</option>
+                    <option value="json">JSON</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label for="export-filename">Filename</label>
+                  <input type="text" id="export-filename" placeholder="scrape-data.csv">
+                </div>
+
+                <div class="form-group" id="csv-bom-group">
+                  <label>
+                    <input type="checkbox" id="csv-bom" checked>
+                    Include UTF-8 BOM (for Excel compatibility)
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>Compliance</h4>
+                
+                <div class="form-group">
+                  <label>
+                    <input type="checkbox" id="require-consent" checked>
+                    Require user consent before scraping
+                  </label>
+                  <small>Shows a warning about robots.txt and Terms of Service</small>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button type="button" id="test-config-btn" class="secondary-btn">Test Configuration</button>
+                <button type="submit" class="primary-btn">Save Job</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Permissions Tab -->
+        <div id="permissions-tab" class="tab-content">
+          <div class="tab-header">
+            <h2>🔒 Permissions & Security</h2>
+          </div>
+
+          <div class="info-box success">
+            <h3>✅ No Manual Permissions Required!</h3>
+            <p>This extension uses <strong>activeTab</strong> permissions, which means:</p>
+            <ul>
+              <li>✅ Works on any website without manual permission grants</li>
+              <li>✅ Only accesses pages when you click the extension icon</li>
+              <li>✅ More secure - no broad host permissions needed</li>
+              <li>✅ Privacy-focused - no background access to your browsing</li>
+            </ul>
+          </div>
+
+          <div class="form-section">
+            <h4>How It Works</h4>
+            <div class="info-box">
+              <p><strong>1. Navigate to website</strong></p>
+              <p>Go to any website you want to scrape (e.g., products.example.com)</p>
+              
+              <p style="margin-top: 15px;"><strong>2. Click extension icon</strong></p>
+              <p>The extension automatically gets temporary access to that specific tab</p>
+              
+              <p style="margin-top: 15px;"><strong>3. Start scraping</strong></p>
+              <p>Use Smart Picker or run your saved jobs - it just works!</p>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h4>Current Permissions</h4>
+            <table class="permissions-table">
+              <tr>
+                <td><strong>activeTab</strong></td>
+                <td>Access current tab when you click the extension</td>
+                <td><span class="badge success">✓ Active</span></td>
+              </tr>
+              <tr>
+                <td><strong>storage</strong></td>
+                <td>Save your job configurations</td>
+                <td><span class="badge success">✓ Active</span></td>
+              </tr>
+              <tr>
+                <td><strong>scripting</strong></td>
+                <td>Inject scraping scripts into webpages</td>
+                <td><span class="badge success">✓ Active</span></td>
+              </tr>
+              <tr>
+                <td><strong>downloads</strong></td>
+                <td>Export scraped data as CSV/JSON files</td>
+                <td><span class="badge success">✓ Active</span></td>
+              </tr>
+              <tr>
+                <td><strong>sidePanel</strong></td>
+                <td>Show sidebar interface</td>
+                <td><span class="badge success">✓ Active</span></td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="info-box warning">
+            <h4>⚠️ Troubleshooting</h4>
+            <p><strong>Error: "Cannot access contents of url"</strong></p>
+            <p>Solution: Make sure you're on a regular webpage (not chrome://, edge://, or extension pages)</p>
+            
+            <p style="margin-top: 10px;"><strong>Extension doesn't work on a site</strong></p>
+            <p>Solution: Navigate to the site first, then click the extension icon</p>
+          </div>
+
+          <div class="form-section">
+            <h4>Privacy & Security</h4>
+            <div class="info-box">
+              <p>✅ <strong>No data collection</strong> - Everything runs locally</p>
+              <p>✅ <strong>No remote servers</strong> - Data stays on your machine</p>
+              <p>✅ <strong>Minimal permissions</strong> - Only what's needed</p>
+              <p>✅ <strong>Open source</strong> - You can inspect the code</p>
+              <p>✅ <strong>On-demand access</strong> - Only when you activate it</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings-tab" class="tab-content">
+          <div class="tab-header">
+            <h2>Global Settings</h2>
+          </div>
+
+          <div class="form-section">
+            <h4>Default Delays</h4>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="default-delay-min">Min (ms)</label>
+                <input type="number" id="default-delay-min" value="1000">
+              </div>
+              <div class="form-group">
+                <label for="default-delay-max">Max (ms)</label>
+                <input type="number" id="default-delay-max" value="2000">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h4>Privacy</h4>
+            
+            <div class="form-group">
+              <label>
+                <input type="checkbox" id="telemetry-enabled">
+                Enable anonymous usage telemetry (opt-in)
+              </label>
+              <small>Helps improve the extension. No personal data is collected.</small>
+            </div>
+          </div>
+
+          <button id="save-settings-btn" class="primary-btn">Save Settings</button>
+        </div>
+
+        <!-- Help Tab -->
+        <div id="help-tab" class="tab-content">
+          <div class="tab-header">
+            <h2>Help & Documentation</h2>
+          </div>
+
+          <div class="help-section">
+            <h3>🚀 Quick Start</h3>
+            <ol>
+              <li><strong>Open Sidebar:</strong> Click the Vibe Scraper icon in Chrome toolbar</li>
+              <li><strong>Create Job:</strong> Enter a Job ID (e.g., "products")</li>
+              <li><strong>Smart Picker:</strong> Click 🎯 Smart Picker button, then click any item on the page</li>
+              <li><strong>Select Mode:</strong> Choose from 5 scraping modes (Single Page, Pagination, Infinite Scroll, Load More)</li>
+              <li><strong>Start Scraping:</strong> Click ▶️ Start Scraping button</li>
+              <li><strong>Download:</strong> CSV downloads automatically when complete!</li>
+            </ol>
+          </div>
+
+          <div class="help-section">
+            <h3>🎯 Smart Features</h3>
+            <ul>
+              <li><strong>Smart Picker:</strong> Automatically detects fields by clicking any item on the page</li>
+              <li><strong>Smart Detect:</strong> Click 🎯 next to Next/Load More buttons to auto-detect selectors</li>
+              <li><strong>Real-time Progress:</strong> Visual overlay shows current item, page, and total count</li>
+              <li><strong>Stop Anytime:</strong> Click ⏹️ Stop button to gracefully terminate scraping</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>📄 Scraping Modes</h3>
+            <dl>
+              <dt><strong>Single Page</strong></dt>
+              <dd>Scrapes only the current page. Perfect for one-time extractions.</dd>
+              
+              <dt><strong>Button Pagination</strong></dt>
+              <dd>Auto-clicks Next buttons. Works on SPAs and dynamic sites. Use 🎯 Detect for automatic selector.</dd>
+              
+              <dt><strong>Query Parameter Pagination</strong></dt>
+              <dd>Fetches pages via URL parameters (?page=2). Fast background fetching. Works on static HTML sites.</dd>
+              
+              <dt><strong>Infinite Scroll</strong></dt>
+              <dd>Auto-scrolls to load more content. Perfect for social feeds and dynamic lists.</dd>
+              
+              <dt><strong>Load More Button</strong></dt>
+              <dd>Auto-clicks Load More buttons. Use 🎯 Detect for automatic selector.</dd>
+            </dl>
+          </div>
+
+          <div class="help-section">
+            <h3>🎨 Beautiful Toggle Switch</h3>
+            <p>When using Pagination mode, toggle between:</p>
+            <ul>
+              <li><strong>Button (LEFT):</strong> Click Next buttons - works on all sites</li>
+              <li><strong>Query Param (RIGHT):</strong> Fast background fetch - for ?page=X URLs</li>
+            </ul>
+            <p>Choose Button for SPAs, Query Param for static sites!</p>
+          </div>
+
+          <div class="help-section">
+            <h3>⚙️ Advanced Settings</h3>
+            <p>Use this Settings page for:</p>
+            <ul>
+              <li>Managing saved jobs</li>
+              <li>Editing configurations manually</li>
+              <li>Visual mode selector with icons</li>
+              <li>Export/import job configurations</li>
+            </ul>
+            <p>For quick scraping, use the sidebar instead!</p>
+          </div>
+
+          <div class="help-section">
+            <h3>💡 Best Practices</h3>
+            <ul>
+              <li>Start with Max Pages = 2 to test your setup</li>
+              <li>Use Smart Picker instead of writing selectors manually</li>
+              <li>Check console (F12) for detailed debug logs</li>
+              <li>Always review a website's robots.txt and Terms of Service</li>
+              <li>Use appropriate delays to avoid overloading servers</li>
+              <li>Respect website rate limits and access restrictions</li>
+              <li>Only scrape publicly available information</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>🐛 Troubleshooting</h3>
+            <dl>
+              <dt><strong>No items found?</strong></dt>
+              <dd>Use Smart Picker to auto-detect the correct selector.</dd>
+              
+              <dt><strong>Pagination not working?</strong></dt>
+              <dd>Use 🎯 Smart Detect next to the Next Button field. If it's a SPA, use Button mode instead of Query Param.</dd>
+              
+              <dt><strong>Query param returns no data?</strong></dt>
+              <dd>Site might require JavaScript. Try Button Pagination mode instead.</dd>
+              
+              <dt><strong>Need help?</strong></dt>
+              <dd>Check console logs (F12) for detailed error messages.</dd>
+            </dl>
+          </div>
+
+          <div class="help-section">
+            <h3>📝 Example Configuration</h3>
+            <pre><code>{
+  "jobId": "products-example",
+  "startUrl": "https://example.com/products",
+  "listing": {
+    "itemSelector": ".product-card",
+    "fields": [
+      { 
+        "name": "title", 
+        "selector": ".product-title", 
+        "attr": "text"
+      },
+      { 
+        "name": "price", 
+        "selector": ".product-price", 
+        "attr": "text"
+      },
+      { 
+        "name": "url", 
+        "selector": "a.product-link", 
+        "attr": "href"
+      }
+    ]
+  },
+  "pagination": {
+    "enabled": true,
+    "type": "button",
+    "nextButtonSelector": "a.next",
+    "maxPages": 10
+  }
+}</code></pre>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="field-template" class="hidden">
+    <div class="field-item">
+      <div class="field-header">
+        <span class="field-number"></span>
+        <button type="button" class="remove-field-btn icon-btn">✕</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Field Name</label>
+          <input type="text" class="field-name" placeholder="title" required>
+        </div>
+        <div class="form-group">
+          <label>Selector</label>
+          <input type="text" class="field-selector" placeholder=".title" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Attribute</label>
+          <select class="field-attr">
+            <option value="text">Text Content</option>
+            <option value="html">HTML</option>
+            <option value="href">href</option>
+            <option value="src">src</option>
+            <option value="value">value</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select class="field-type">
+            <option value="string">String</option>
+            <option value="number">Number</option>
+            <option value="date">Date</option>
+            <option value="url">URL</option>
+            <option value="boolean">Boolean</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" class="field-required">
+          Required field
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <script src="options.js" type="module"></script>
+</body>
+</html>

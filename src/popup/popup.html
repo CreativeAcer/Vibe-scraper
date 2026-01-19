@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vibe Scraper</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header>
+      <h1>🌊 Vibe Scraper</h1>
+      <button id="open-options" title="Open Settings">⚙️</button>
+    </header>
+
+    <div id="no-jobs-message" class="message">
+      <p>No scraping jobs configured.</p>
+      <button id="create-job-btn" class="primary-btn">Create Your First Job</button>
+    </div>
+
+    <div id="job-editor" class="job-editor hidden">
+      <div class="editor-header">
+        <h3>Quick Job Setup</h3>
+        <button id="close-job-editor" class="icon-btn">✕</button>
+      </div>
+      
+      <form id="quick-job-form">
+        <div class="form-group">
+          <label>Job ID:</label>
+          <input type="text" id="quick-job-id" placeholder="my-scraper" required>
+        </div>
+        
+        <div class="form-group">
+          <label>Current Page URL:</label>
+          <input type="text" id="quick-start-url" readonly>
+        </div>
+        
+        <div id="picker-status" class="picker-status hidden">
+          <div class="status-message">
+            🎯 <strong>Smart Picker is active on the webpage!</strong><br>
+            <small>Click an item on the website, then come back here.</small>
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" id="quick-smart-picker-btn" class="primary-btn">
+            🎯 Smart Picker
+          </button>
+          <button type="button" id="save-quick-job-btn" class="secondary-btn">
+            💾 Save Job
+          </button>
+        </div>
+        
+        <div id="quick-fields-preview" class="fields-preview hidden">
+          <h4>Detected Fields (select what to scrape):</h4>
+          <div id="quick-fields-list" class="fields-list"></div>
+          <div class="field-actions">
+            <button type="button" id="select-all-fields" class="link-btn">Select All</button>
+            <button type="button" id="deselect-all-fields" class="link-btn">Deselect All</button>
+          </div>
+        </div>
+        
+        <div id="scraping-mode-section" class="scraping-mode-section hidden">
+          <h4>Scraping Mode:</h4>
+          
+          <div class="mode-options">
+            <label class="mode-option">
+              <input type="radio" name="scraping-mode" value="single" checked>
+              <span>📄 Single Page</span>
+              <small>Scrape current page only</small>
+            </label>
+            
+            <label class="mode-option">
+              <input type="radio" name="scraping-mode" value="pagination">
+              <span>📄 Pagination</span>
+              <small>Auto-navigate with Next button</small>
+            </label>
+            
+            <label class="mode-option">
+              <input type="radio" name="scraping-mode" value="infinite">
+              <span>♾️ Infinite Scroll</span>
+              <small>Auto-scroll to load more</small>
+            </label>
+            
+            <label class="mode-option">
+              <input type="radio" name="scraping-mode" value="load-more">
+              <span>🔄 Load More Button</span>
+              <small>Click button to load more</small>
+            </label>
+          </div>
+          
+          <div id="pagination-options" class="mode-config hidden">
+            <!-- Beautiful Toggle Switch -->
+            <div class="pagination-type-toggle">
+              <span class="toggle-label" id="label-button">🔘 Button</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="pagination-type-toggle">
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label" id="label-query">🔗 Query Param</span>
+            </div>
+            
+            <!-- Button Mode Settings -->
+            <div id="pagination-button-group">
+              <div class="form-group">
+                <label>Next Button Selector:</label>
+                <div class="selector-input-group">
+                  <input type="text" id="pagination-selector" placeholder="a.next" value="a.next">
+                  <button type="button" id="detect-next-btn" class="secondary-btn">🎯</button>
+                </div>
+                <small>Click Detect, then click Next button</small>
+              </div>
+            </div>
+            
+            <!-- Query Parameter Mode Settings -->
+            <div id="pagination-query-group" class="hidden">
+              <div class="form-group">
+                <label>URL Parameter Name:</label>
+                <input type="text" id="pagination-param" placeholder="page" value="page">
+                <small>e.g., "page" for ?page=2</small>
+              </div>
+              <div style="background: #d4edda; border-left: 3px solid #28a745; padding: 8px; margin-top: 8px; border-radius: 4px; font-size: 10px;">
+                <strong>✅ Works!</strong> Query param mode fetches pages in background without navigation. Scrapes multiple pages automatically!
+              </div>
+            </div>
+            
+            <!-- Common Settings -->
+            <div class="form-group">
+              <label>Max Pages:</label>
+              <input type="number" id="pagination-max" value="10" min="1" max="100">
+            </div>
+          </div>
+          
+          <div id="infinite-options" class="mode-config hidden">
+            <div class="form-group">
+              <label>Max Scrolls:</label>
+              <input type="number" id="infinite-max" value="10" min="1" max="50">
+            </div>
+            <div class="form-group">
+              <label>Delay (ms):</label>
+              <input type="number" id="infinite-delay" value="3000" min="1000" max="10000" step="1000">
+              <small>Wait time between scrolls</small>
+            </div>
+          </div>
+          
+          <div id="load-more-options" class="mode-config hidden">
+            <div class="form-group">
+              <label>Load More Button Selector:</label>
+              <div class="selector-input-group">
+                <input type="text" id="load-more-selector" placeholder=".load-more" value=".load-more">
+                <button type="button" id="detect-load-more-btn" class="secondary-btn">🎯 Detect</button>
+              </div>
+              <small>CSS selector for Load More button - or click Detect and click the button on page</small>
+            </div>
+            <div class="form-group">
+              <label>Max Clicks:</label>
+              <input type="number" id="load-more-max" value="10" min="1" max="100">
+            </div>
+            <div class="form-group">
+              <label>Delay (ms):</label>
+              <input type="number" id="load-more-delay" value="2000" min="500" max="10000" step="500">
+              <small>Wait time after clicking Load More</small>
+            </div>
+          </div>
+        </div>
+      </form>
+      
+      <div class="help-text">
+        <small>💡 <strong>Quick Setup:</strong><br>
+        1. Fill in Job ID<br>
+        2. Click "Smart Picker"<br>
+        3. Click an item on the website<br>
+        4. Fields auto-appear here - click "Save Job"!</small>
+      </div>
+    </div>
+
+    <div id="jobs-list" class="hidden">
+      <div class="job-selector">
+        <label for="job-select">Select Job:</label>
+        <div>
+          <select id="job-select"></select>
+          <button id="create-new-job-btn" class="icon-btn" title="Create New Job">➕</button>
+        </div>
+      </div>
+
+      <div id="job-details" class="job-details">
+        <div class="detail-row">
+          <span class="label">Start URL:</span>
+          <span id="job-url" class="value"></span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Status:</span>
+          <span id="job-status" class="value badge"></span>
+        </div>
+      </div>
+
+      <div id="progress-section" class="progress-section hidden">
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <div class="progress-stats">
+          <div class="stat">
+            <span class="stat-label">Items:</span>
+            <span id="items-count" class="stat-value">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Pages:</span>
+            <span id="pages-count" class="stat-value">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Time:</span>
+            <span id="time-elapsed" class="stat-value">0:00</span>
+          </div>
+        </div>
+        
+        <!-- Current Item Display -->
+        <div id="current-item-display" class="current-item-display hidden">
+          <div class="current-item-label">📍 Currently scraping:</div>
+          <div id="current-item-text" class="current-item-text">Initializing...</div>
+        </div>
+      </div>
+
+      <div class="action-buttons">
+        <button id="start-btn" class="primary-btn">Start Scraping</button>
+        <button id="stop-btn" class="secondary-btn hidden">Stop</button>
+      </div>
+
+      <div id="logs-section" class="logs-section">
+        <div class="logs-header">
+          <h3>Activity Log</h3>
+          <button id="clear-logs-btn" class="icon-btn">🗑️</button>
+        </div>
+        <div id="logs-container" class="logs-container"></div>
+      </div>
+    </div>
+
+    <!-- Footer removed - selector helper not needed -->
+  </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

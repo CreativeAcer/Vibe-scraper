@@ -1,0 +1,286 @@
+# Vibe Scraper - .gitignore
+
+# ============================================
+# Operating System Files
+# ============================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.directory
+.Trash-*
+.nfs*
+
+# ============================================
+# IDE / Editor Files
+# ============================================
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+.history/
+
+# JetBrains IDEs (WebStorm, IntelliJ, etc.)
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.idea_modules/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+Sessionx.vim
+.netrwhist
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ============================================
+# Node.js / NPM (if you add build tools later)
+# ============================================
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Package lock files (optional - uncomment if not using)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ============================================
+# Build / Distribution
+# ============================================
+
+# Distribution folder (if you create builds)
+dist/
+build/
+release/
+
+# ZIP packages (built extensions)
+*.zip
+*.crx
+*.xpi
+
+# Compiled files
+*.min.js
+*.min.css
+
+# ============================================
+# Chrome Extension Specific
+# ============================================
+
+# Private key (NEVER commit this!)
+*.pem
+key.pem
+
+# Chrome extension packages
+*.crx
+
+# Web store credentials
+web-store-credentials.json
+client_secrets.json
+
+# Extension build artifacts
+manifest-*.json
+
+# ============================================
+# Development / Testing
+# ============================================
+
+# Test files (if you add testing later)
+coverage/
+.nyc_output/
+test-results/
+*.test.js.snap
+
+# Temporary test data
+test-data/
+mock-data/
+
+# Debug logs
+debug.log
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# ============================================
+# Documentation
+# ============================================
+
+# Generated documentation (if you use JSDoc, etc.)
+docs/api/
+docs/generated/
+
+# ============================================
+# Environment / Configuration
+# ============================================
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Local configuration
+config.local.js
+settings.local.json
+
+# API keys / secrets (NEVER commit these!)
+secrets.json
+api-keys.json
+credentials.json
+
+# ============================================
+# Scraping Data
+# ============================================
+
+# Scraped data files (users might generate these)
+*.csv
+*.json
+downloads/
+scraped-data/
+exports/
+
+# Exception: Keep example files
+!example.csv
+!example.json
+
+# ============================================
+# Chrome Extension Development
+# ============================================
+
+# Chrome user data (if testing with profiles)
+chrome-user-data/
+user-data/
+
+# Extension screenshots (auto-generated)
+screenshots/auto/
+
+# ============================================
+# Git
+# ============================================
+
+# Patch files
+*.patch
+*.diff
+
+# ============================================
+# Project Specific
+# ============================================
+
+# Old/backup files
+*.old
+backup/
+archive/
+
+# Development notes (personal)
+NOTES.md
+TODO.md
+ROADMAP.personal.md
+
+# Local scripts for development
+dev-*.js
+test-*.js
+debug-*.js
+
+# Personal configurations
+.personal/
+
+# ============================================
+# Keep These Files
+# ============================================
+
+# Always include:
+# !manifest.json
+# !README.md
+# !LICENSE
+# !.gitignore
+# !package.json
+# !src/**
+# !public/**
+
+# ============================================
+# Notes
+# ============================================
+
+# This .gitignore is comprehensive for a Chrome extension project.
+# Adjust as needed based on your specific development workflow.
+#
+# Key protections:
+# - Private keys (.pem files)
+# - API credentials
+# - User data
+# - Build artifacts
+# - OS/IDE files
+#
+# Remember: Once something is committed to git, it's in the history forever.
+# Use git-filter-branch or BFG Repo-Cleaner to remove sensitive data if needed.
