@@ -131,6 +131,14 @@ if (typeof window.__VS_PAGINATION_DETECTOR_LOADED__ === 'undefined') {
         if (children.length >= 2) return el;
       }
     }
+    // Fallback: any ul/div/section that contains ≥3 links or buttons with pure digit text
+    // (numbered pagination without standard class names)
+    for (const el of safeQueryAll('ul, ol, div, nav, section')) {
+      if (el === document.body || el === document.documentElement) continue;
+      const digitEls = safeQueryAll('a, button', el)
+        .filter(a => /^\d+$/.test(a.textContent.trim()));
+      if (digitEls.length >= 3) return el;
+    }
     return null;
   }
 
@@ -248,6 +256,30 @@ if (typeof window.__VS_PAGINATION_DETECTOR_LOADED__ === 'undefined') {
       }
     }
 
+    // Detect numbered pagination series (e.g. buttons "1 2 3 4 5" with or without "Next")
+    // This is the primary signal for AJAX numbered pagination with no page-param hrefs.
+    const allDigitEls = safeQueryAll('a, button, [role="button"]')
+      .filter(el => /^\d+$/.test(el.textContent.trim()));
+    if (allDigitEls.length >= 3) {
+      const nums = allDigitEls
+        .map(el => parseInt(el.textContent.trim()))
+        .sort((a, b) => a - b);
+      const isSequential = nums.some((n, i) => i > 0 && n === nums[i - 1] + 1);
+      if (isSequential) {
+        const anyFake = allDigitEls.some(el => isFakeHref(el.getAttribute('href')));
+        const allReal = allDigitEls.every(el => !isFakeHref(el.getAttribute('href')));
+        if (anyFake) {
+          // Numbered AJAX pagination — strong positive signal for button mode
+          scores.button += 45;
+          evidence.button.push(`Found ${allDigitEls.length} sequential numbered AJAX pagination buttons`);
+        } else if (allReal) {
+          // Numbered links with real hrefs — already counted in queryParam block, add a boost
+          scores.queryParam += 20;
+          evidence.queryParam.push(`Found ${allDigitEls.length} sequential numbered pagination links`);
+        }
+      }
+    }
+
     // Scan inline scripts for pushState/replaceState
     const inlineScripts = safeQueryAll('script:not([src])')
       .map(s => s.textContent).join('\n');
@@ -277,16 +309,6 @@ if (typeof window.__VS_PAGINATION_DETECTOR_LOADED__ === 'undefined') {
       evidence['load-more'].push('Found data-load-more attribute on element');
     }
 
-    if (scores.queryParam < 20) {
-      scores['load-more'] += 20;
-      evidence['load-more'].push('No numbered pagination links found');
-    }
-
-    if (scores.button < 35) {
-      scores['load-more'] += 15;
-      evidence['load-more'].push('No Next button candidate found');
-    }
-
     if (loadMoreEl) {
       // Check it's unique — not part of a numbered series
       const similar = safeQueryAll('button, a, [role="button"]')
@@ -295,6 +317,16 @@ if (typeof window.__VS_PAGINATION_DETECTOR_LOADED__ === 'undefined') {
         scores['load-more'] += 20;
         evidence['load-more'].push('Single load-more trigger found (not a series)');
       }
+    }
+
+    // Cross-check bonus: only boost load-more when there is genuinely NO pagination
+    // evidence at all — not just weak button/queryParam scores.
+    // Using !container as the key gate: if a pagination container was found, the page
+    // has numbered/next-button pagination, not load-more.
+    const noPaginationEvidence = !container && scores.queryParam < 15 && scores.button < 20;
+    if (noPaginationEvidence) {
+      scores['load-more'] += 25;
+      evidence['load-more'].push('No pagination controls found on page');
     }
 
     // ── BLOCK D: infinite scroll ────────────────────────────────────────────
