@@ -863,10 +863,20 @@ async function activateQuickSmartPicker() {
 
         const picker = new window.SmartElementPicker();
         picker.activate((result) => {
-          // Send result back to extension
+          // Strip DOM element refs before sending — chrome.runtime.sendMessage
+          // uses structured clone which cannot serialize DOM nodes (DataCloneError).
           chrome.runtime.sendMessage({
             type: 'SMART_PICKER_RESULT',
-            data: result
+            data: {
+              itemSelector: result.itemSelector,
+              fields: (result.fields || []).map(f => ({
+                name: f.name,
+                selector: f.selector,
+                attr: f.attr,
+                type: f.type,
+                preview: f.preview
+              }))
+            }
           });
         }, { skipPanel: true }); // Skip panel, auto-select all fields
       }

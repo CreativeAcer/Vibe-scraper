@@ -199,17 +199,22 @@ class SmartElementPicker {
   }
 
   autoConfirmAllFields(analysis) {
-    // Automatically select all detected fields with preview
-    // NOTE: DOM element references are intentionally excluded — they cannot be
-    // serialized by chrome.runtime.sendMessage (structured clone throws DataCloneError).
+    // Automatically select all detected fields with preview.
+    // selectedElement is kept here because the ACTIVATE_SMART_PICKER code path
+    // uses it locally inside the content script to generate a specific selector.
+    // Callers that send this result via chrome.runtime.sendMessage must strip
+    // DOM refs themselves before calling sendMessage (structured clone cannot
+    // serialize DOM nodes and will throw DataCloneError).
     const result = {
       itemSelector: analysis.itemSelector,
+      selectedElement: this.selectedElement,
       fields: analysis.fields.map(f => ({
         name: f.name,
         selector: f.selector,
         attr: f.attr,
         type: f.type,
-        preview: f.preview
+        preview: f.preview,
+        element: f.element
       }))
     };
 
