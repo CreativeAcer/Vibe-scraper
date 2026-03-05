@@ -146,6 +146,12 @@ function setupEventListeners() {
   // Detect next button
   document.getElementById('detect-next-btn').addEventListener('click', detectNextButton);
   document.getElementById('detect-load-more-btn').addEventListener('click', detectLoadMoreButton);
+
+  // Auto-detect pagination mode
+  document.getElementById('auto-detect-mode-btn').addEventListener('click', autoDetectPaginationMode);
+  document.getElementById('apply-detection-btn').addEventListener('click', () => {
+    if (window._lastDetectionResult) applyDetectedConfig(window._lastDetectionResult);
+  });
   
   // Pagination type toggle
   document.getElementById('pagination-type-toggle').addEventListener('change', handlePaginationTypeToggle);
@@ -542,6 +548,8 @@ function setupMessageListener() {
       // Open job editor when requested from Settings page
       console.log('🚀 Opening job editor from Settings page request');
       showJobEditor();
+    } else if (message.type === 'PAGINATION_DETECTED') {
+      handlePaginationDetected(message.result, message.error);
     }
     
     // Return true to keep channel open for async responses
@@ -1091,6 +1099,148 @@ function showStatus(message, type) {
   document.body.appendChild(status);
   
   setTimeout(() => status.remove(), 3000);
+}
+
+/**
+ * Auto-detect pagination mode for the current page
+ */
+async function autoDetectPaginationMode() {
+  const btn     = document.getElementById('auto-detect-mode-btn');
+  const spinner = document.getElementById('detection-spinner');
+  const result  = document.getElementById('detection-result');
+
+  btn.disabled = true;
+  btn.textContent = 'Detecting…';
+  spinner.classList.remove('hidden');
+  result.classList.add('hidden');
+
+  let timeoutId;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    if (!tab || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+      showStatus('❌ Cannot detect on this page type', 'error');
+      return;
+    }
+
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ['src/content/pagination-detector.js'],
+    });
+
+    await new Promise(r => setTimeout(r, 300));
+
+    await chrome.tabs.sendMessage(tab.id, { type: 'ACTIVATE_PAGINATION_DETECTOR' });
+
+    // Safety re-enable in case the message never comes back
+    timeoutId = setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = '🔍 Auto-detect mode';
+      spinner.classList.add('hidden');
+      showStatus('❌ Detection timed out — try again', 'error');
+    }, 10000);
+
+  } catch (error) {
+    console.error('Auto-detect error:', error);
+    showStatus('❌ Detection failed: ' + error.message, 'error');
+    clearTimeout(timeoutId);
+    btn.disabled = false;
+    btn.textContent = '🔍 Auto-detect mode';
+    spinner.classList.add('hidden');
+  }
+}
+
+/**
+ * Handle PAGINATION_DETECTED message from content script
+ */
+function handlePaginationDetected(detectionResult, error) {
+  const btn     = document.getElementById('auto-detect-mode-btn');
+  const spinner = document.getElementById('detection-spinner');
+  const resultDiv = document.getElementById('detection-result');
+
+  btn.disabled = false;
+  btn.textContent = '🔍 Auto-detect mode';
+  spinner.classList.add('hidden');
+
+  if (error || !detectionResult) {
+    showStatus('❌ Detection error: ' + (error || 'Unknown'), 'error');
+    return;
+  }
+
+  window._lastDetectionResult = detectionResult;
+
+  const typeLabels = {
+    queryParam:  'Query Parameter Pagination',
+    button:      'Button / AJAX Pagination',
+    'load-more': 'Load More Button',
+    infinite:    'Infinite Scroll',
+    single:      'Single Page (no pagination)',
+  };
+
+  document.getElementById('detection-type-label').textContent =
+    typeLabels[detectionResult.best.type] || detectionResult.best.type;
+
+  const badge = document.getElementById('detection-confidence-badge');
+  badge.textContent = detectionResult.best.confidence;
+  const colors = {
+    high:   { bg: '#d4edda', color: '#155724' },
+    medium: { bg: '#fff3cd', color: '#856404' },
+    low:    { bg: '#f8d7da', color: '#721c24' },
+  };
+  const c = colors[detectionResult.best.confidence] || colors.low;
+  badge.style.background = c.bg;
+  badge.style.color      = c.color;
+
+  const ev = detectionResult.best.evidence || [];
+  document.getElementById('detection-evidence-list').innerHTML =
+    ev.length ? ev.map(e => `<div>· ${e}</div>`).join('') : '<div>No specific signals detected</div>';
+
+  resultDiv.classList.remove('hidden');
+}
+
+/**
+ * Apply a detection result to the job config form
+ */
+function applyDetectedConfig(detectionResult) {
+  const { config } = detectionResult;
+  const type = config.paginationType;
+
+  const radioMap = {
+    queryParam:  'pagination',
+    button:      'pagination',
+    'load-more': 'load-more',
+    infinite:    'infinite',
+    single:      'single',
+  };
+
+  const radioValue = radioMap[type] || 'single';
+  const radio = document.querySelector(`input[name="scraping-mode"][value="${radioValue}"]`);
+  if (radio) {
+    radio.checked = true;
+    handleScrapingModeChange({ target: radio });
+  }
+
+  if (type === 'queryParam') {
+    const toggle = document.getElementById('pagination-type-toggle');
+    toggle.checked = true;
+    handlePaginationTypeToggle({ target: toggle });
+    if (config.pageParam) {
+      document.getElementById('pagination-param').value = config.pageParam;
+    }
+  } else if (type === 'button') {
+    const toggle = document.getElementById('pagination-type-toggle');
+    toggle.checked = false;
+    handlePaginationTypeToggle({ target: toggle });
+    if (config.nextButtonSelector) {
+      document.getElementById('pagination-selector').value = config.nextButtonSelector;
+    }
+  } else if (type === 'load-more') {
+    if (config.loadMoreSelector) {
+      document.getElementById('load-more-selector').value = config.loadMoreSelector;
+    }
+  }
+
+  showStatus(`✅ Applied: ${type} mode (${detectionResult.best.confidence} confidence)`, 'success');
 }
 
 /**

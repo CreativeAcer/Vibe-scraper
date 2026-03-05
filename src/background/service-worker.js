@@ -112,6 +112,16 @@ async function handleMessage(message, sender, sendResponse) {
         sendResponse({ success: true });
         break;
 
+      case 'PAGINATION_DETECTED':
+        // Relay from content script (sender.tab is set) to popup
+        chrome.runtime.sendMessage({
+          type: 'PAGINATION_DETECTED',
+          result: message.result,
+          error: message.error,
+        }).catch(() => {}); // Ignore if popup is closed
+        sendResponse({ success: true });
+        break;
+
       default:
         sendResponse({ success: false, error: 'Unknown message type' });
     }

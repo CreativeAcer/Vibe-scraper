@@ -62,7 +62,27 @@
         
         <div id="scraping-mode-section" class="scraping-mode-section hidden">
           <h4>Scraping Mode:</h4>
-          
+
+          <!-- Auto-detect pagination mode -->
+          <div id="auto-detect-container">
+            <div class="auto-detect-row">
+              <button type="button" id="auto-detect-mode-btn" class="secondary-btn">
+                🔍 Auto-detect mode
+              </button>
+              <span id="detection-spinner" class="hidden">Analyzing…</span>
+            </div>
+            <div id="detection-result" class="hidden">
+              <div class="detection-result-header">
+                <div>
+                  <span id="detection-type-label"></span>
+                  <span id="detection-confidence-badge"></span>
+                </div>
+                <button type="button" id="apply-detection-btn" class="primary-btn">Apply</button>
+              </div>
+              <div id="detection-evidence-list"></div>
+            </div>
+          </div>
+
           <div class="mode-options">
             <label class="mode-option">
               <input type="radio" name="scraping-mode" value="single" checked>

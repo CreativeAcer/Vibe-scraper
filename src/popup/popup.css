@@ -944,3 +944,78 @@ input:checked + .toggle-slider:before {
 .pagination-type-toggle .icon {
   font-size: 14px;
 }
+
+/* ── Auto-detect pagination mode ──────────────────────────────── */
+#auto-detect-container {
+  margin-bottom: 12px;
+}
+
+.auto-detect-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auto-detect-row .secondary-btn {
+  flex: 1;
+  font-size: 12px;
+  padding: 7px 10px;
+}
+
+#detection-spinner {
+  font-size: 12px;
+  color: #667eea;
+  animation: vs-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes vs-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
+#detection-result {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #f0f7ff;
+  border: 1px solid #d0e7ff;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+#detection-result.hidden {
+  display: none;
+}
+
+.detection-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+#detection-type-label {
+  font-weight: 600;
+  color: #333;
+}
+
+#detection-confidence-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+#apply-detection-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+#detection-evidence-list {
+  color: #555;
+  font-size: 11px;
+  line-height: 1.6;
+}
