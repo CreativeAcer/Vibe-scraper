@@ -228,81 +228,103 @@ class SmartElementPicker {
   }
 
   analyzeElement(element) {
-    const fields = [];
-    const seenSelectors = new Set();
-    
-    // Generate a selector that finds ALL similar items, not just this one
-    const itemSelector = this.generateItemSelector(element);
+    // Extract fields starting from `root`. All relative selectors are relative to root.
+    const extractFields = (root) => {
+      const fields = [];
+      const seenSelectors = new Set();
 
-    const findFields = (el, depth = 0) => {
-      if (depth > 5) return;
+      const findFields = (el, depth = 0) => {
+        if (depth > 5) return;
 
-      Array.from(el.children).forEach(child => {
-        const relativeSelector = this.generateRelativeSelector(element, child);
-        
-        if (seenSelectors.has(relativeSelector)) return;
-        seenSelectors.add(relativeSelector);
+        Array.from(el.children).forEach(child => {
+          const relativeSelector = this.generateRelativeSelector(root, child);
 
-        const text = child.textContent.trim();
-        const hasText = text.length > 0 && text.length < 200;
-        const fieldName = this.suggestFieldName(child, text);
+          if (seenSelectors.has(relativeSelector)) return;
+          seenSelectors.add(relativeSelector);
 
-        if (hasText) {
-          fields.push({
-            name: fieldName,
-            selector: relativeSelector,
-            attr: 'text',
-            type: this.guessType(text),
-            preview: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
-            element: child
-          });
-        }
+          const text = child.textContent.trim();
+          // Raised from 200 → 500 so descriptions are not silently dropped
+          const hasText = text.length > 0 && text.length < 500;
+          const fieldName = this.suggestFieldName(child, text);
 
-        if (child.tagName === 'A' && child.href) {
-          fields.push({
-            name: fieldName + '_url',
-            selector: relativeSelector,
-            attr: 'href',
-            type: 'url',
-            preview: child.href,
-            element: child
-          });
-        }
-
-        if ((child.tagName === 'IMG' || child.tagName === 'SOURCE') && child.src) {
-          fields.push({
-            name: fieldName + '_image',
-            selector: relativeSelector,
-            attr: 'src',
-            type: 'url',
-            preview: child.src,
-            element: child
-          });
-        }
-
-        Array.from(child.attributes).forEach(attr => {
-          if (attr.name.startsWith('data-')) {
+          if (hasText) {
             fields.push({
-              name: attr.name.replace('data-', ''),
+              name: fieldName,
               selector: relativeSelector,
-              attr: attr.name,
-              type: 'string',
-              preview: attr.value,
+              attr: 'text',
+              type: this.guessType(text),
+              preview: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
               element: child
             });
           }
-        });
 
-        findFields(child, depth + 1);
-      });
+          if (child.tagName === 'A' && child.href) {
+            fields.push({
+              name: fieldName + '_url',
+              selector: relativeSelector,
+              attr: 'href',
+              type: 'url',
+              preview: child.href,
+              element: child
+            });
+          }
+
+          if ((child.tagName === 'IMG' || child.tagName === 'SOURCE') && child.src) {
+            fields.push({
+              name: fieldName + '_image',
+              selector: relativeSelector,
+              attr: 'src',
+              type: 'url',
+              preview: child.src,
+              element: child
+            });
+          }
+
+          Array.from(child.attributes).forEach(attr => {
+            if (attr.name.startsWith('data-')) {
+              fields.push({
+                name: attr.name.replace('data-', ''),
+                selector: relativeSelector,
+                attr: attr.name,
+                type: 'string',
+                preview: attr.value,
+                element: child
+              });
+            }
+          });
+
+          findFields(child, depth + 1);
+        });
+      };
+
+      findFields(root);
+      return this.deduplicateFields(fields);
     };
 
-    findFields(element);
+    // Try the clicked element first. If it has no children with content (e.g. the user
+    // clicked a leaf <span> or <p> instead of the card container), walk up the DOM
+    // until we find an ancestor that actually yields fields.
+    let fields = extractFields(element);
+    let root = element;
+
+    if (fields.length === 0) {
+      let candidate = element.parentElement;
+      while (candidate && candidate !== document.body && candidate !== document.documentElement) {
+        const candidateFields = extractFields(candidate);
+        if (candidateFields.length > 0) {
+          fields = candidateFields;
+          root = candidate;
+          console.log('📦 Walked up to ancestor for fields:', root.tagName, root.className);
+          break;
+        }
+        candidate = candidate.parentElement;
+      }
+    }
 
     return {
-      itemSelector,
-      fields: this.deduplicateFields(fields),
-      element
+      itemSelector: this.generateItemSelector(root),
+      fields,
+      element: root
     };
   }
 
