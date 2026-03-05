@@ -1241,20 +1241,58 @@
              after.firstText !== before.firstText;
     }
 
-    /** Polls until state changes or timeout. Returns false when nothing changed. */
+    /**
+     * Waits for the page content to change after a next-button click.
+     *
+     * Uses a MutationObserver so we react instantly to DOM mutations, then
+     * waits for the DOM to be STABLE for 600ms before capturing the final
+     * state.  This correctly handles AJAX tables that go through a transient
+     * loading / spinner state before the real rows arrive:
+     *
+     *   click → spinner added  →  rows replaced  →  spinner removed
+     *              ↑ mutation       ↑ mutation          ↑ mutation
+     *                                                   ← 600ms stable →
+     *                                                   resolve(true) ✅
+     *
+     * Returns false only when the timeout expires with no stable change.
+     */
     async function waitForChange(stateBefore, timeoutMs = 8000) {
-      const deadline = Date.now() + timeoutMs;
-      while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 250));
-        const after = captureState();
-        if (stateChanged(stateBefore, after)) {
-          await new Promise(r => setTimeout(r, 400)); // let DOM settle
-          console.log('✅ Page content changed');
-          return true;
-        }
-      }
-      console.warn('⚠️ No content change detected within', timeoutMs, 'ms');
-      return false;
+      return new Promise(resolve => {
+        let settled = null;
+
+        const finish = (result) => {
+          clearTimeout(settled);
+          clearTimeout(hardTimeout);
+          observer.disconnect();
+          resolve(result);
+        };
+
+        // Hard timeout — give up if nothing changes at all
+        const hardTimeout = setTimeout(() => {
+          console.warn('⚠️ No content change detected within', timeoutMs, 'ms');
+          finish(false);
+        }, timeoutMs);
+
+        const observer = new MutationObserver(() => {
+          // Reset the settle timer on every DOM mutation
+          clearTimeout(settled);
+          settled = setTimeout(() => {
+            const after = captureState();
+            if (stateChanged(stateBefore, after)) {
+              console.log('✅ Page content stable and changed');
+              finish(true);
+            }
+            // State didn't actually change yet (e.g. only spinner appeared);
+            // keep observing until the real content lands or we time out.
+          }, 600);
+        });
+
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+        });
+      });
     }
 
     // ── Main flow ─────────────────────────────────────────────────────────────
