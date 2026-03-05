@@ -397,6 +397,50 @@
     };
   }
   
+  // ── Shared DOM-change utility ───────────────────────────────────────────────
+  //
+  // Sets up a MutationObserver SYNCHRONOUSLY (so it catches even synchronous
+  // DOM changes that happen inside el.click()), then calls `isChanged()` after
+  // each DOM-settle period.  Resolves true once isChanged() returns true, or
+  // false when timeoutMs expires with no meaningful change.
+  //
+  // MUST be called BEFORE the click that triggers the change.
+  //
+  function waitForDOMChange(isChanged, settleMs = 300, timeoutMs = 8000) {
+    return new Promise(resolve => {
+      let settleTimer = null;
+
+      const done = (v) => {
+        clearTimeout(settleTimer);
+        clearTimeout(hardTimer);
+        observer.disconnect();
+        resolve(v);
+      };
+
+      const hardTimer = setTimeout(() => {
+        console.warn('⚠️ waitForDOMChange: timed out after', timeoutMs, 'ms');
+        done(false);
+      }, timeoutMs);
+
+      const observer = new MutationObserver(() => {
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => {
+          if (isChanged()) done(true);
+          // else: DOM settled but content not yet relevant — keep watching
+        }, settleMs);
+      });
+
+      observer.observe(document.body, {
+        childList:       true,
+        subtree:         true,
+        characterData:   true,
+        attributes:      true,
+        // Limit attribute noise to layout-relevant attributes
+        attributeFilter: ['style', 'class', 'hidden', 'aria-hidden', 'aria-selected', 'display'],
+      });
+    });
+  }
+
   // Scrape with Load More button
   async function scrapeWithLoadMore(listing, loadMore, jobId) {
     const maxClicks = loadMore.maxClicks || 10;
@@ -457,102 +501,147 @@
         break;
       }
       
-      // Count items before click
-      const itemsBefore = document.querySelectorAll(itemSelector).length;
-      console.log(`   Items before click: ${itemsBefore}`);
-      
+      // Helper: only count/read VISIBLE items so client-side pagination
+      // (which hides rows with display:none instead of removing them)
+      // is handled correctly.
+      const getVisible = () =>
+        Array.from(document.querySelectorAll(itemSelector)).filter(
+          el => el.style?.display !== 'none' && !el.hidden
+        );
+
+      const visibleBefore  = getVisible();
+      const countBefore    = visibleBefore.length;
+      const firstTxtBefore = visibleBefore[0]?.textContent?.trim().substring(0, 80) || '';
+      const lastTxtBefore  = visibleBefore[visibleBefore.length - 1]?.textContent?.trim().substring(0, 80) || '';
+      console.log(`   Visible items before click: ${countBefore}`);
+
+      // Set up change detection BEFORE clicking.
+      // This is critical: synchronous DOM changes (client-side pagination)
+      // happen inside el.click() and would be missed if we set up the
+      // observer afterward.
+      const changePromise = waitForDOMChange(() => {
+        const items     = getVisible();
+        const count     = items.length;
+        const firstTxt  = items[0]?.textContent?.trim().substring(0, 80) || '';
+        const lastTxt   = items[items.length - 1]?.textContent?.trim().substring(0, 80) || '';
+        return count !== countBefore || firstTxt !== firstTxtBefore || lastTxt !== lastTxtBefore;
+      }, 300, delayMs + 4000);
+
       // Click the button
       console.log('   🖱️ Clicking Load More button...');
       loadMoreBtn.click();
-      
-      // Wait for new items to load
-      console.log(`   ⏳ Waiting ${delayMs}ms for items to load...`);
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-      
-      // Count items after click
-      const itemsAfter = document.querySelectorAll(itemSelector).length;
-      console.log(`   Items after click: ${itemsAfter}`);
-      
-      const newItemsCount = itemsAfter - itemsBefore;
-      
-      if (newItemsCount > 0) {
-        console.log(`   📊 ${newItemsCount} new items loaded, scraping...`);
-        
-        // Scrape the new items only
-        const allItems = document.querySelectorAll(itemSelector);
-        const newItems = Array.from(allItems).slice(itemsBefore);
-        
-        for (let j = 0; j < newItems.length; j++) {
-          const item = newItems[j];
-          const itemData = {};
-          
-          // Extract each field
-          for (const field of listing.fields) {
-            try {
-              const element = item.querySelector(field.selector);
-              
-              if (element) {
-                let value;
-                
-                switch (field.attr) {
-                  case 'text':
-                    value = element.textContent.trim();
-                    break;
-                  case 'href':
-                    value = element.href;
-                    break;
-                  case 'src':
-                    value = element.src;
-                    break;
-                  default:
-                    value = element.getAttribute(field.attr);
-                }
-                
-                itemData[field.name] = value;
-              } else {
-                itemData[field.name] = null;
+
+      // Wait for DOM to change and stabilise
+      const contentChanged = await changePromise;
+      console.log(`   Content changed: ${contentChanged}`);
+
+      const visibleAfter  = getVisible();
+      const countAfter    = visibleAfter.length;
+      const firstTxtAfter = visibleAfter[0]?.textContent?.trim().substring(0, 80) || '';
+      console.log(`   Visible items after click: ${countAfter}`);
+
+      // Auto-detect mode:
+      //   Append  — more items are now visible (standard Load More)
+      //   Replace — same count but content changed (AJAX replace / pagination-as-Load-More)
+      const appendedCount = countAfter - countBefore;
+      const isReplaceMode = appendedCount === 0 && firstTxtAfter !== firstTxtBefore;
+
+      // Helper: extract field values from a single item element
+      const extractItem = (item) => {
+        const itemData = {};
+        for (const field of listing.fields) {
+          try {
+            const element = item.querySelector(field.selector);
+            if (element) {
+              let value;
+              switch (field.attr) {
+                case 'text': value = element.textContent.trim(); break;
+                case 'href': value = element.href; break;
+                case 'src':  value = element.src;  break;
+                default:     value = element.getAttribute(field.attr);
               }
-            } catch (error) {
+              itemData[field.name] = value;
+            } else {
               itemData[field.name] = null;
             }
-          }
-          
+          } catch { itemData[field.name] = null; }
+        }
+        return itemData;
+      };
+
+      if (appendedCount > 0) {
+        // ── Append mode ───────────────────────────────────────────────────
+        console.log(`   📊 Append mode: ${appendedCount} new items added`);
+        const newItems = visibleAfter.slice(countBefore);
+
+        for (const item of newItems) {
+          const itemData = extractItem(item);
           allResults.push(itemData);
-          
-          // Send current item update
           safeSendMessage({
             type: 'CURRENT_ITEM_UPDATE',
             jobId: jobId,
             currentItem: itemData[listing.fields[0]?.name] || 'Item',
             itemNumber: allResults.length,
-            totalItems: itemsAfter,
-            pageNumber: i + 2 // +2 because we already did initial scrape
+            totalItems: countAfter,
+            pageNumber: i + 2,
           });
         }
-        
-        console.log(`   ✅ Scraped ${newItemsCount} new items (total: ${allResults.length})`);
-        noNewItemsCount = 0; // Reset counter
+
+        console.log(`   ✅ Scraped ${appendedCount} new items (total: ${allResults.length})`);
+        noNewItemsCount = 0;
         clickCount++;
-        
-        // Send progress update
+
         safeSendMessage({
           type: 'PROGRESS_UPDATE',
           jobId: jobId,
           progress: {
             itemsScraped: allResults.length,
-            currentPage: clickCount + 1,
-            totalItems: allResults.length,
-            percentage: Math.round(((clickCount + 1) / maxClicks) * 100)
-          }
+            currentPage:  clickCount + 1,
+            totalItems:   allResults.length,
+            percentage:   Math.round(((clickCount + 1) / maxClicks) * 100),
+          },
         });
-        
+
+      } else if (isReplaceMode) {
+        // ── Replace mode ──────────────────────────────────────────────────
+        // The visible items were swapped out (e.g. DataTables in Load-More
+        // disguise, or a paginated AJAX endpoint used as Load More).
+        // Scrape ALL currently visible items — they are all new.
+        console.log(`   📊 Replace mode: ${countAfter} items replaced`);
+
+        for (const item of visibleAfter) {
+          const itemData = extractItem(item);
+          allResults.push(itemData);
+          safeSendMessage({
+            type: 'CURRENT_ITEM_UPDATE',
+            jobId: jobId,
+            currentItem: itemData[listing.fields[0]?.name] || 'Item',
+            itemNumber: allResults.length,
+            totalItems: countAfter,
+            pageNumber: i + 2,
+          });
+        }
+
+        console.log(`   ✅ Scraped ${countAfter} replaced items (total: ${allResults.length})`);
+        noNewItemsCount = 0;
+        clickCount++;
+
+        safeSendMessage({
+          type: 'PROGRESS_UPDATE',
+          jobId: jobId,
+          progress: {
+            itemsScraped: allResults.length,
+            currentPage:  clickCount + 1,
+            totalItems:   allResults.length,
+            percentage:   Math.round(((clickCount + 1) / maxClicks) * 100),
+          },
+        });
+
       } else {
-        console.log(`   ⚠️ No new items loaded`);
+        console.log(`   ⚠️ No new items detected`);
         noNewItemsCount++;
-        
-        // If no new items for 3 clicks in a row, stop
         if (noNewItemsCount >= 3) {
-          console.log('🛑 Stopping: No new items loaded after 3 Load More clicks');
+          console.log('🛑 Stopping: No new items after 3 Load More clicks');
           break;
         }
       }
@@ -1226,73 +1315,31 @@
 
     const itemSel = listing?.itemSelector;
 
+    // Return only VISIBLE items — client-side DataTables hides rows with
+    // display:none instead of removing them, so a plain querySelectorAll
+    // would always return the same count across pages.
+    function visibleItems() {
+      if (!itemSel) return [];
+      return Array.from(document.querySelectorAll(itemSel)).filter(
+        el => el.style?.display !== 'none' && !el.hidden
+      );
+    }
+
     function captureState() {
-      const items = itemSel ? document.querySelectorAll(itemSel) : [];
+      const items = visibleItems();
       return {
         url:       window.location.href,
         count:     items.length,
         firstText: items[0]?.textContent?.trim().substring(0, 80) || '',
+        lastText:  items[items.length - 1]?.textContent?.trim().substring(0, 80) || '',
       };
     }
 
-    function stateChanged(before, after) {
-      return after.url !== before.url ||
-             after.count !== before.count ||
-             after.firstText !== before.firstText;
-    }
-
-    /**
-     * Waits for the page content to change after a next-button click.
-     *
-     * Uses a MutationObserver so we react instantly to DOM mutations, then
-     * waits for the DOM to be STABLE for 600ms before capturing the final
-     * state.  This correctly handles AJAX tables that go through a transient
-     * loading / spinner state before the real rows arrive:
-     *
-     *   click → spinner added  →  rows replaced  →  spinner removed
-     *              ↑ mutation       ↑ mutation          ↑ mutation
-     *                                                   ← 600ms stable →
-     *                                                   resolve(true) ✅
-     *
-     * Returns false only when the timeout expires with no stable change.
-     */
-    async function waitForChange(stateBefore, timeoutMs = 8000) {
-      return new Promise(resolve => {
-        let settled = null;
-
-        const finish = (result) => {
-          clearTimeout(settled);
-          clearTimeout(hardTimeout);
-          observer.disconnect();
-          resolve(result);
-        };
-
-        // Hard timeout — give up if nothing changes at all
-        const hardTimeout = setTimeout(() => {
-          console.warn('⚠️ No content change detected within', timeoutMs, 'ms');
-          finish(false);
-        }, timeoutMs);
-
-        const observer = new MutationObserver(() => {
-          // Reset the settle timer on every DOM mutation
-          clearTimeout(settled);
-          settled = setTimeout(() => {
-            const after = captureState();
-            if (stateChanged(stateBefore, after)) {
-              console.log('✅ Page content stable and changed');
-              finish(true);
-            }
-            // State didn't actually change yet (e.g. only spinner appeared);
-            // keep observing until the real content lands or we time out.
-          }, 600);
-        });
-
-        observer.observe(document.body, {
-          childList: true,
-          subtree: true,
-          characterData: true,
-        });
-      });
+    function stateChanged(a, b) {
+      return a.url       !== b.url       ||
+             a.count     !== b.count     ||
+             a.firstText !== b.firstText ||
+             a.lastText  !== b.lastText;
     }
 
     // ── Main flow ─────────────────────────────────────────────────────────────
@@ -1316,19 +1363,22 @@
       nextButton.href || ''
     );
 
-    // Scroll button into view so it can receive the click
     try { nextButton.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch { /* ignore */ }
 
-    const stateBefore = captureState();
+    // IMPORTANT: create the changePromise (which sets up the MutationObserver)
+    // BEFORE calling .click().  For client-side pagination the DOM is updated
+    // synchronously inside click(), so an observer created afterward misses it.
+    const before = captureState();
+    const changePromise = waitForDOMChange(() => stateChanged(before, captureState()), 300, 8000);
     nextButton.click();
 
-    // Wait for content to change; retry once if the first click didn't register
-    const changed = await waitForChange(stateBefore, 8000);
-    if (!changed) {
-      console.log('🔄 Retrying click...');
+    if (!(await changePromise)) {
+      // Retry once — some buttons need focus first or fire on mousedown
+      console.log('🔄 No change detected — retrying click once...');
+      const before2 = captureState();
+      const retryPromise = waitForDOMChange(() => stateChanged(before2, captureState()), 300, 5000);
       nextButton.click();
-      const retryChanged = await waitForChange(stateBefore, 4000);
-      if (!retryChanged) {
+      if (!(await retryPromise)) {
         console.warn('⚠️ Page did not change after two clicks — assuming last page');
         return false;
       }
