@@ -397,6 +397,34 @@
     };
   }
   
+  // ── Click helper ────────────────────────────────────────────────────────────
+  //
+  // Runs the click in the PAGE's main JS world via a script tag injection.
+  // This is more reliable than el.click() from an isolated content-script
+  // because some framework event handlers (jQuery plugins, DataTables, React
+  // synthetic events, etc.) only respond to events that originate in the
+  // main world.
+  //
+  // If the page's CSP blocks inline script tags the attribute won't be removed,
+  // and we fall back to el.click() from the content-script world.
+  //
+  function clickElement(el) {
+    const key = `__vs_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    el.setAttribute('data-vs-click', key);
+    try {
+      const s = document.createElement('script');
+      s.textContent = `(function(){var e=document.querySelector('[data-vs-click="${key}"]');if(e){e.removeAttribute('data-vs-click');e.click();}})();`;
+      (document.head || document.documentElement).appendChild(s);
+      s.remove();
+    } catch (_) { /* ignore */ }
+    // If attribute is still present the script didn't run → fall back
+    if (el.hasAttribute('data-vs-click')) {
+      el.removeAttribute('data-vs-click');
+      console.log('ℹ️ Script injection blocked — falling back to el.click()');
+      el.click();
+    }
+  }
+
   // ── Shared DOM-change utility ───────────────────────────────────────────────
   //
   // Sets up a MutationObserver SYNCHRONOUSLY (so it catches even synchronous
@@ -504,9 +532,12 @@
       // Helper: only count/read VISIBLE items so client-side pagination
       // (which hides rows with display:none instead of removing them)
       // is handled correctly.
+      // offsetParent === null means the element is not rendered (display:none,
+      // visibility:hidden, or a hidden ancestor) — catches both inline-style
+      // and CSS-class-based hiding (e.g. DataTables .dt-hide).
       const getVisible = () =>
         Array.from(document.querySelectorAll(itemSelector)).filter(
-          el => el.style?.display !== 'none' && !el.hidden
+          el => el.offsetParent !== null
         );
 
       const visibleBefore  = getVisible();
@@ -527,9 +558,9 @@
         return count !== countBefore || firstTxt !== firstTxtBefore || lastTxt !== lastTxtBefore;
       }, 300, delayMs + 4000);
 
-      // Click the button
+      // Click the button (runs in main world for framework compatibility)
       console.log('   🖱️ Clicking Load More button...');
-      loadMoreBtn.click();
+      clickElement(loadMoreBtn);
 
       // Wait for DOM to change and stabilise
       const contentChanged = await changePromise;
@@ -649,7 +680,7 @@
       // Update overlay
       updateScrapingOverlay(
         allResults.length,
-        itemsAfter,
+        countAfter,
         clickCount + 1,
         `Loaded ${clickCount + 1} times`,
         allResults.length
@@ -1315,13 +1346,12 @@
 
     const itemSel = listing?.itemSelector;
 
-    // Return only VISIBLE items — client-side DataTables hides rows with
-    // display:none instead of removing them, so a plain querySelectorAll
-    // would always return the same count across pages.
+    // Return only VISIBLE items — offsetParent catches all forms of hiding
+    // (inline style, CSS class, hidden attribute, hidden ancestor).
     function visibleItems() {
       if (!itemSel) return [];
       return Array.from(document.querySelectorAll(itemSel)).filter(
-        el => el.style?.display !== 'none' && !el.hidden
+        el => el.offsetParent !== null
       );
     }
 
@@ -1370,14 +1400,14 @@
     // synchronously inside click(), so an observer created afterward misses it.
     const before = captureState();
     const changePromise = waitForDOMChange(() => stateChanged(before, captureState()), 300, 8000);
-    nextButton.click();
+    clickElement(nextButton);
 
     if (!(await changePromise)) {
       // Retry once — some buttons need focus first or fire on mousedown
       console.log('🔄 No change detected — retrying click once...');
       const before2 = captureState();
       const retryPromise = waitForDOMChange(() => stateChanged(before2, captureState()), 300, 5000);
-      nextButton.click();
+      clickElement(nextButton);
       if (!(await retryPromise)) {
         console.warn('⚠️ Page did not change after two clicks — assuming last page');
         return false;
