@@ -408,19 +408,89 @@
   // If the page's CSP blocks inline script tags the attribute won't be removed,
   // and we fall back to el.click() from the content-script world.
   //
-  function clickElement(el) {
-    const key = `__vs_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    el.setAttribute('data-vs-click', key);
+  // Inject a one-liner into the page's MAIN JS world and run it.
+  // Returns true if the script tag was accepted by the browser (CSP allowing).
+  function injectScript(code) {
     try {
       const s = document.createElement('script');
-      s.textContent = `(function(){var e=document.querySelector('[data-vs-click="${key}"]');if(e){e.removeAttribute('data-vs-click');e.click();}})();`;
+      s.textContent = `(function(){${code}})();`;
       (document.head || document.documentElement).appendChild(s);
       s.remove();
-    } catch (_) { /* ignore */ }
-    // If attribute is still present the script didn't run → fall back
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function clickElement(el) {
+    // ── DataTables: invoke the DataTables JS API directly ──────────────────
+    //
+    // Clicking a [data-dt-idx] anchor via a synthetic DOM event does NOT
+    // reliably trigger DataTables server-side pagination.  DataTables builds
+    // its AJAX payload from its own internal state; it needs its own .draw()
+    // to be called, not just a click event on an <a> tag.
+    //
+    // We inject a script into the main world that calls the DataTables API
+    // directly.  This fires the identical code path as a real user click.
+    //
+    if (el.hasAttribute('data-dt-idx')) {
+      const injected = injectScript(`
+        var done = false;
+        // DataTables + jQuery (most common)
+        try {
+          if (window.jQuery && jQuery.fn && jQuery.fn.dataTable) {
+            var api = jQuery.fn.dataTable.tables({ api: true });
+            if (api && api.page) {
+              api.page('next').draw(false);
+              done = true;
+              console.log('[scraper] DataTables (jQuery) — next page triggered via API');
+            }
+          }
+        } catch(e) { console.warn('[scraper] jQuery DT API error:', e); }
+        // DataTables standalone (v2+, no jQuery)
+        if (!done) try {
+          if (window.DataTable && DataTable.tables) {
+            DataTable.tables({ api: true }).page('next').draw(false);
+            done = true;
+            console.log('[scraper] DataTables (standalone) — next page triggered via API');
+          }
+        } catch(e) { console.warn('[scraper] Standalone DT API error:', e); }
+        // Last resort: click the Next anchor directly from the main world
+        if (!done) {
+          var next = document.querySelector(
+            'a.next[data-dt-idx], li.next > a[data-dt-idx], ' +
+            '.paginate_button.next > a, .page-item.next > a'
+          );
+          if (next) {
+            next.click();
+            console.log('[scraper] DataTables — clicked Next anchor from main world');
+          } else {
+            console.warn('[scraper] DataTables — could not find Next button');
+          }
+        }
+      `);
+      if (!injected) {
+        // CSP blocked script injection — try direct click as absolute last resort
+        el.click();
+      }
+      return;
+    }
+
+    // ── All other elements: click via main-world injection ─────────────────
+    //
+    // Running el.click() from an isolated content script sometimes fails for
+    // framework event handlers (React, jQuery plugins) that only respond to
+    // events originating in the main world.
+    //
+    const key = `__vs_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    el.setAttribute('data-vs-click', key);
+    injectScript(`
+      var e = document.querySelector('[data-vs-click="${key}"]');
+      if (e) { e.removeAttribute('data-vs-click'); e.click(); }
+    `);
+    // If the script ran, the attribute was removed; otherwise fall back
     if (el.hasAttribute('data-vs-click')) {
       el.removeAttribute('data-vs-click');
-      console.log('ℹ️ Script injection blocked — falling back to el.click()');
       el.click();
     }
   }
