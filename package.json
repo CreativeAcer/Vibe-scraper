@@ -1,0 +1,33 @@
+{
+  "name": "Vibe-scraper",
+  "version": "1.0.0",
+  "description": "Advanced web scraper browser extension with pagination, infinite scroll, and detail page navigation",
+  "author": "Creativeacer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CreativeAcer/Vibe-scraper"
+  },
+  "keywords": [
+    "web-scraper",
+    "browser-extension",
+    "edge-extension",
+    "chrome-extension",
+    "data-extraction",
+    "web-automation",
+    "manifest-v3"
+  ],
+  "scripts": {
+    "build": "echo 'No build step required for MV3'",
+    "lint": "echo 'Add ESLint configuration if needed'",
+    "test": "echo 'Add tests with Jest or similar'",
+    "package": "zip -r web-scraper-pro.zip . -x '*.git*' 'node_modules/*' '*.DS_Store'"
+  },
+  "devDependencies": {},
+  "dependencies": {},
+  "browser": {
+    "chrome": ">=88",
+    "edge": ">=88"
+  },
+  "manifest_version": 3
+}

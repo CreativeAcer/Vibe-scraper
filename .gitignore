@@ -205,7 +205,6 @@ credentials.json
 
 # Scraped data files (users might generate these)
 *.csv
-*.json
 downloads/
 scraped-data/
 exports/
@@ -259,14 +258,14 @@ debug-*.js
 # Keep These Files
 # ============================================
 
-# Always include:
-# !manifest.json
-# !README.md
-# !LICENSE
-# !.gitignore
-# !package.json
-# !src/**
-# !public/**
+Always include:
+ !manifest.json
+ !README.md
+ !LICENSE
+ !.gitignore
+ !package.json
+ !src/**
+ !public/**
 
 # ============================================
 # Notes

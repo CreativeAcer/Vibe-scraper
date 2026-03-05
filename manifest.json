@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Vibe Scraper",
+  "version": "1.0.0",
+  "description": "Smart web scraper with button/query pagination, infinite scroll, and load more support",
+  "icons": {
+    "16": "public/icons/icon16.png",
+    "48": "public/icons/icon48.png",
+    "128": "public/icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "downloads",
+    "scripting",
+    "tabs",
+    "activeTab",
+    "sidePanel"
+  ],
+  "host_permissions": [],
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_icon": {
+      "16": "public/icons/icon16.png",
+      "48": "public/icons/icon48.png"
+    }
+  },
+  "options_page": "src/options/options.html",
+  "side_panel": {
+    "default_path": "src/popup/popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "commands": {
+    "toggle-selector-helper": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Toggle element selector helper"
+    }
+  }
+}
