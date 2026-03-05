@@ -447,9 +447,12 @@
       }
       
       // Check if button is disabled or hidden
-      if (loadMoreBtn.disabled || 
-          loadMoreBtn.style.display === 'none' || 
-          loadMoreBtn.classList.contains('disabled')) {
+      if (loadMoreBtn.disabled ||
+          loadMoreBtn.getAttribute('aria-disabled') === 'true' ||
+          loadMoreBtn.style.display === 'none' ||
+          loadMoreBtn.style.visibility === 'hidden' ||
+          loadMoreBtn.classList.contains('disabled') ||
+          loadMoreBtn.classList.contains('hidden')) {
         console.log('⚠️ Load More button is disabled or hidden - no more items');
         break;
       }
@@ -666,9 +669,19 @@
         break;
       }
       
-      // Scroll to bottom
+      // Scroll to bottom — try a scrollable container first, fall back to window
       console.log('   📜 Scrolling to bottom...');
-      window.scrollTo(0, document.body.scrollHeight);
+      const scrollTarget = Array.from(document.querySelectorAll('*')).find(el => {
+        if (el === document.body || el === document.documentElement) return false;
+        const s = getComputedStyle(el);
+        return (s.overflowY === 'auto' || s.overflowY === 'scroll') &&
+               el.scrollHeight > el.clientHeight + 200;
+      });
+      if (scrollTarget) {
+        scrollTarget.scrollTop = scrollTarget.scrollHeight;
+      } else {
+        window.scrollTo(0, document.body.scrollHeight);
+      }
       
       // Wait for new content to load
       console.log(`   ⏳ Waiting ${delayMs}ms for content to load...`);
@@ -1027,359 +1040,263 @@
   
   // Navigate to next page
   async function goToNextPage(pagination, listing) {
-    console.log('🔍 Looking for next page...');
-    console.log('   Pagination type:', pagination.type);
-    
-    // Handle URL query parameter pagination
+    console.log('🔍 Looking for next page... (type:', pagination.type, ')');
+
+    // Query param pagination is handled entirely by the background script.
+    // The content script only scrapes the current page.
     if (pagination.type === 'queryParam') {
-      console.log('   Query parameter mode - single page only');
-      console.log('   No navigation (user must manually go to next page)');
-      return false; // Stop pagination, scrape current page only
+      return false;
     }
-    
-    // Handle button-based pagination
-    console.log('   Button mode');
-    console.log('   Selector:', pagination.nextButtonSelector);
-    
-    // Helper to get current page number from URL
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    function safeQuery(sel) {
+      try { return document.querySelector(sel); } catch { return null; }
+    }
+
+    function safeQueryAll(sel) {
+      try { return Array.from(document.querySelectorAll(sel)); } catch { return []; }
+    }
+
+    /** Returns true when an element should be treated as non-interactive */
+    function isDisabled(el) {
+      if (!el) return true;
+      if (el.disabled) return true;
+      if (el.getAttribute('aria-disabled') === 'true') return true;
+      if (el.classList.contains('disabled')) return true;
+      if (el.getAttribute('tabindex') === '-1') return true;
+      // inline style check (fast)
+      if (el.style.pointerEvents === 'none') return true;
+      // computed style check (catches CSS classes like .disabled { pointer-events:none })
+      try {
+        if (getComputedStyle(el).pointerEvents === 'none') return true;
+      } catch { /* ignore */ }
+      return false;
+    }
+
+    /** Returns true when an element looks like a "next page" control */
+    function looksLikeNext(el) {
+      const text  = el.textContent.trim().toLowerCase();
+      const aria  = (el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
+      const rel   = (el.getAttribute('rel') || '').toLowerCase();
+      const id    = (el.id || '').toLowerCase();
+      return (
+        ['next', '>', '›', '»', '→'].includes(text) ||
+        text.endsWith('next') ||
+        aria.includes('next') ||
+        rel === 'next' ||
+        id.includes('next') ||
+        el.classList.contains('next') ||
+        el.classList.contains('next-page') ||
+        el.classList.contains('pagination-next') ||
+        el.classList.contains('page-next') ||
+        el.classList.contains('pager-next')
+      );
+    }
+
+    /** Reads the current page number from the URL or from an active DOM indicator */
     function getCurrentPageNumber() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const pageParam = urlParams.get('page');
-      return pageParam ? parseInt(pageParam) : 1;
+      const urlParam = new URLSearchParams(window.location.search).get('page');
+      if (urlParam) return parseInt(urlParam);
+      // Try common active-page DOM patterns
+      const active = document.querySelector(
+        '.pagination .active a, .pagination .current, [aria-current="page"], .page-item.active .page-link'
+      );
+      if (active) {
+        const n = parseInt(active.textContent.trim());
+        if (!isNaN(n)) return n;
+      }
+      return 1;
     }
-    
-    // Helper to wait for page change
-    async function waitForPageChange(itemSelector, firstItemTextBefore) {
-      console.log('🔄 Waiting for page transition...');
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      console.log('🔄 Waiting for new content to load...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      for (let attempt = 0; attempt < 20; attempt++) {
-        const firstItemAfter = document.querySelector(itemSelector);
-        const firstItemTextAfter = firstItemAfter?.textContent?.trim().substring(0, 50) || '';
-        
-        console.log(`   Check ${attempt + 1}/20: "${firstItemTextAfter.substring(0, 30)}..."`);
-        
-        if (firstItemTextAfter && firstItemTextAfter !== firstItemTextBefore) {
-          console.log('✅ Content changed!');
-          console.log('   First item before:', firstItemTextBefore);
-          console.log('   First item after:', firstItemTextAfter);
-          await new Promise(resolve => setTimeout(resolve, 500));
+
+    // ── DataTables resolver ──────────────────────────────────────────────────
+
+    function resolveDataTablesNext(anyDtElem) {
+      const container =
+        anyDtElem.closest('.dataTables_paginate, [role="navigation"], nav, .pagination') ||
+        anyDtElem.parentElement?.parentElement ||
+        document;
+      const all = Array.from(container.querySelectorAll('[data-dt-idx]'));
+
+      // Strategy 1: find the element that looks like "Next"
+      const dtNext = all.find(el => looksLikeNext(el));
+      if (dtNext) {
+        if (isDisabled(dtNext)) {
+          console.log('🛑 DataTables "Next" is disabled — last page');
+          return null;
+        }
+        return dtNext;
+      }
+
+      // Strategy 2: find the active page number, return page+1 button
+      const active = all.find(el =>
+        el.classList.contains('current') || el.classList.contains('active')
+      );
+      if (active) {
+        const n = parseInt(active.textContent.trim());
+        if (!isNaN(n)) {
+          const nextBtn = all.find(el =>
+            parseInt(el.textContent.trim()) === n + 1 && !isDisabled(el)
+          );
+          return nextBtn || null;
+        }
+      }
+      return null;
+    }
+
+    // ── Numbered-pagination resolver ─────────────────────────────────────────
+    // Used when the user's selector matches numbered page links (e.g. "1 2 3 4 …")
+    // instead of a true "Next" button.
+
+    function resolveNumberedNext(baseSelector) {
+      const current = getCurrentPageNumber();
+      const candidates = safeQueryAll(baseSelector)
+        .filter(el => /^\d+$/.test(el.textContent.trim()))
+        .map(el => ({ el, n: parseInt(el.textContent.trim()) }))
+        .sort((a, b) => a.n - b.n);
+      const found = candidates.find(({ n, el }) => n === current + 1 && !isDisabled(el));
+      if (!found) {
+        console.warn(`⚠️ No numbered button for page ${current + 1}. Available:`, candidates.map(c => c.n));
+        return null;
+      }
+      return found.el;
+    }
+
+    // ── Universal next-button finder (priority order) ────────────────────────
+
+    function findNextButton() {
+      // 1. User-provided selector — highest priority
+      if (pagination.nextButtonSelector) {
+        const el = safeQuery(pagination.nextButtonSelector);
+        if (el) {
+          if (el.hasAttribute('data-dt-idx')) {
+            console.log('📋 DataTables detected via user selector');
+            return resolveDataTablesNext(el);
+          }
+          // If it resolved to a pure-number page link, find current+1 instead
+          if (/^\d+$/.test(el.textContent.trim()) && !looksLikeNext(el)) {
+            console.warn('⚠️ User selector resolved to a numbered page link — finding current+1');
+            return resolveNumberedNext(pagination.nextButtonSelector);
+          }
+          if (!isDisabled(el)) return el;
+        }
+      }
+
+      // 2. rel="next" — SEO/HTML standard, very reliable
+      const relNext = document.querySelector('a[rel="next"]');
+      if (relNext && !isDisabled(relNext)) return relNext;
+
+      // 3. DataTables anywhere on the page
+      const anyDt = document.querySelector('[data-dt-idx]');
+      if (anyDt) {
+        console.log('📋 DataTables pagination detected on page');
+        return resolveDataTablesNext(anyDt);
+      }
+
+      // 4. aria-label / title containing "next"
+      for (const el of document.querySelectorAll('[aria-label],[title]')) {
+        const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
+        if (label.includes('next') && !isDisabled(el)) return el;
+      }
+
+      // 5. Common CSS class patterns
+      const classSelectors = [
+        '.next:not(.disabled)',
+        '.next-page:not(.disabled)',
+        '.page-next:not(.disabled)',
+        '.pagination-next:not(.disabled)',
+        '.pager-next:not(.disabled)',
+        '[data-action="next"]',
+        '[data-page="next"]',
+      ];
+      for (const sel of classSelectors) {
+        const el = safeQuery(sel);
+        if (el && !isDisabled(el)) return el;
+      }
+
+      // 6. Text scan — all anchors and buttons
+      for (const el of document.querySelectorAll('a, button')) {
+        if (looksLikeNext(el) && !isDisabled(el)) return el;
+      }
+
+      return null;
+    }
+
+    // ── Change-detection helpers ──────────────────────────────────────────────
+
+    const itemSel = listing?.itemSelector;
+
+    function captureState() {
+      const items = itemSel ? document.querySelectorAll(itemSel) : [];
+      return {
+        url:       window.location.href,
+        count:     items.length,
+        firstText: items[0]?.textContent?.trim().substring(0, 80) || '',
+      };
+    }
+
+    function stateChanged(before, after) {
+      return after.url !== before.url ||
+             after.count !== before.count ||
+             after.firstText !== before.firstText;
+    }
+
+    /** Polls until state changes or timeout. Returns false when nothing changed. */
+    async function waitForChange(stateBefore, timeoutMs = 8000) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 250));
+        const after = captureState();
+        if (stateChanged(stateBefore, after)) {
+          await new Promise(r => setTimeout(r, 400)); // let DOM settle
+          console.log('✅ Page content changed');
           return true;
         }
-        
-        await new Promise(resolve => setTimeout(resolve, 200));
       }
-      
-      console.warn('⚠️ Content did not change after multiple checks');
-      console.log('🔄 Trying one more time with longer delay...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const finalCheck = document.querySelector(itemSelector);
-      const finalText = finalCheck?.textContent?.trim().substring(0, 50) || '';
-      
-      if (finalText && finalText !== firstItemTextBefore) {
-        console.log('✅ Content changed on final check!');
-        return true;
-      }
-      
-      console.warn('⚠️ Continuing anyway - will check if scraped data is different...');
-      return true;
+      console.warn('⚠️ No content change detected within', timeoutMs, 'ms');
+      return false;
     }
-    
-    // Try to find next button
-    let nextButton = document.querySelector(pagination.nextButtonSelector);
-    
+
+    // ── Main flow ─────────────────────────────────────────────────────────────
+
+    const nextButton = findNextButton();
+
     if (!nextButton) {
-      console.log('❌ Next button not found with provided selector');
-      console.log('   Trying common next button patterns...');
-      
-      // Try common next button selectors
-      const commonSelectors = [
-        'a[aria-label*="next" i]',
-        'a[aria-label*="Next"]',
-        'button[aria-label*="next" i]',
-        'a:contains("Next")',
-        'a:contains("→")',
-        'a:contains("›")',
-        'a:contains("»")',
-        'button:contains("Next")',
-        '.pagination-next:not([href*="page="])', // Next button without page number
-        '.next-page',
-        '.page-next',
-        'a.next'
-      ];
-      
-      for (const selector of commonSelectors) {
-        // Handle :contains pseudo-selector manually
-        if (selector.includes(':contains')) {
-          const match = selector.match(/^([^:]+):contains\("([^"]+)"\)$/);
-          if (match) {
-            const [, baseSelector, text] = match;
-            const candidates = document.querySelectorAll(baseSelector);
-            nextButton = Array.from(candidates).find(el => el.textContent.includes(text));
-            if (nextButton) {
-              console.log(`✅ Found with pattern: ${selector}`);
-              break;
-            }
-          }
-        } else {
-          nextButton = document.querySelector(selector);
-          if (nextButton) {
-            console.log(`✅ Found with pattern: ${selector}`);
-            break;
-          }
-        }
-      }
-      
-      if (!nextButton) {
-        console.log('   Available links:', document.querySelectorAll('a').length);
-        console.log('   Available buttons:', document.querySelectorAll('button').length);
+      console.log('❌ No next button found on page');
+      return false;
+    }
+
+    if (isDisabled(nextButton)) {
+      console.log('🛑 Next button is disabled — last page reached');
+      return false;
+    }
+
+    console.log(
+      '🖱️ Next button found:',
+      nextButton.tagName,
+      `"${nextButton.textContent.trim() || '(icon)'}"`,
+      nextButton.href || ''
+    );
+
+    // Scroll button into view so it can receive the click
+    try { nextButton.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch { /* ignore */ }
+
+    const stateBefore = captureState();
+    nextButton.click();
+
+    // Wait for content to change; retry once if the first click didn't register
+    const changed = await waitForChange(stateBefore, 8000);
+    if (!changed) {
+      console.log('🔄 Retrying click...');
+      nextButton.click();
+      const retryChanged = await waitForChange(stateBefore, 4000);
+      if (!retryChanged) {
+        console.warn('⚠️ Page did not change after two clicks — assuming last page');
         return false;
       }
     }
-    
-    // DataTables / data-dt-idx pagination handling
-    // data-dt-idx is a keyboard-navigation index, not a page number.
-    // When the user's selector resolves to a data-dt-idx element we redirect to
-    // the real "Next" control so we always advance exactly one page at a time.
-    if (nextButton && nextButton.hasAttribute('data-dt-idx')) {
-      console.log('📋 DataTables pagination detected (data-dt-idx)');
 
-      // Walk up to find the pagination container
-      const container = nextButton.closest('.dataTables_paginate, [role="navigation"]')
-                      || nextButton.parentElement?.parentElement
-                      || document;
-
-      const allDtBtns = Array.from(container.querySelectorAll('[data-dt-idx]'));
-
-      // Strategy 1: find the element with class "next" — DataTables always uses this
-      const dtNext = allDtBtns.find(el =>
-        el.classList.contains('next') ||
-        el.textContent.trim().toLowerCase() === 'next' ||
-        (el.getAttribute('aria-label') || '').toLowerCase().includes('next')
-      );
-
-      if (dtNext) {
-        const isDisabled = dtNext.classList.contains('disabled') ||
-                           dtNext.getAttribute('aria-disabled') === 'true' ||
-                           dtNext.getAttribute('tabindex') === '-1';
-        if (isDisabled) {
-          console.log('🛑 DataTables "Next" is disabled — last page reached');
-          return false;
-        }
-        nextButton = dtNext;
-        console.log('✅ Using DataTables Next button:', nextButton.textContent.trim());
-      } else {
-        // Strategy 2: find the currently active page number, then click number+1
-        const activePage = allDtBtns.find(el =>
-          el.classList.contains('current') || el.classList.contains('active')
-        );
-        if (activePage) {
-          const currentNum = parseInt(activePage.textContent.trim());
-          if (!isNaN(currentNum)) {
-            const nextNumBtn = allDtBtns.find(el => {
-              const n = parseInt(el.textContent.trim());
-              return n === currentNum + 1 && !el.classList.contains('disabled');
-            });
-            if (nextNumBtn) {
-              nextButton = nextNumBtn;
-              console.log(`✅ Clicking DataTables page ${currentNum + 1}`);
-            } else {
-              console.log('🛑 No next page available in DataTables — last page reached');
-              return false;
-            }
-          }
-        }
-      }
-    }
-
-    // Additional check: If button has a page number in href, it's probably wrong
-    if (nextButton.href && pagination.nextButtonSelector) {
-      const url = new URL(nextButton.href, window.location.href);
-      const pageParam = url.searchParams.get('page');
-      
-      if (pageParam && /^\d+$/.test(pageParam)) {
-        // It's a numbered page link, not a "Next" button
-        console.warn('⚠️ Selector found a numbered page link, not a Next button');
-        console.warn('   Looking for actual Next button...');
-        
-        // Find the REAL next button (with arrow or "Next" text)
-        const allLinks = Array.from(document.querySelectorAll('a'));
-        const realNextButton = allLinks.find(link => {
-          const text = link.textContent.trim().toLowerCase();
-          const ariaLabel = link.getAttribute('aria-label')?.toLowerCase() || '';
-          
-          return (
-            text.includes('next') ||
-            text.includes('→') ||
-            text.includes('›') ||
-            text.includes('»') ||
-            ariaLabel.includes('next') ||
-            link.classList.contains('next') ||
-            (text === '' && link.querySelector('svg')) // Icon-only button
-          );
-        });
-        
-        if (realNextButton) {
-          console.log('✅ Found real Next button:', realNextButton.textContent.trim() || '(icon)');
-          nextButton = realNextButton;
-        } else {
-          console.log('⚠️ No Next button found, will use numbered pagination');
-          // Fall through to use numbered button logic below
-        }
-      }
-    }
-    
-    // Universal numbered pagination handler
-    const buttonText = nextButton.textContent.trim();
-    if (/^\d+$/.test(buttonText)) {
-      const buttonPageNumber = parseInt(buttonText);
-      const currentPageNumber = getCurrentPageNumber();
-      
-      console.log('   Numbered pagination detected');
-      console.log('   Button says:', buttonPageNumber);
-      console.log('   Current page:', currentPageNumber);
-      
-      if (buttonPageNumber <= currentPageNumber) {
-        console.warn('⚠️ First button found points to current or previous page');
-        console.log('   Strategy: Find all numbered buttons and click the one AFTER current');
-        
-        // Get ALL pagination buttons/links with the same selector
-        const allPaginationElements = Array.from(document.querySelectorAll(pagination.nextButtonSelector));
-        console.log(`   Found ${allPaginationElements.length} pagination elements`);
-        
-        // Filter to only numbered buttons and sort by page number
-        const numberedButtons = allPaginationElements
-          .filter(el => /^\d+$/.test(el.textContent.trim()))
-          .map(el => ({
-            element: el,
-            pageNumber: parseInt(el.textContent.trim())
-          }))
-          .sort((a, b) => a.pageNumber - b.pageNumber);
-        
-        console.log('   Numbered buttons found:', numberedButtons.map(b => b.pageNumber).join(', '));
-        
-        // Find button with page number = currentPage + 1
-        const targetPageNumber = currentPageNumber + 1;
-        const targetButton = numberedButtons.find(b => b.pageNumber === targetPageNumber);
-        
-        if (targetButton) {
-          console.log(`✅ Found button for page ${targetPageNumber}`);
-          nextButton = targetButton.element;
-        } else {
-          console.error(`❌ No button found for page ${targetPageNumber}`);
-          console.error('   Available pages:', numberedButtons.map(b => b.pageNumber).join(', '));
-          console.error('   Might be on last page or pagination incomplete');
-          return false;
-        }
-      } else {
-        console.log('✅ Button page number is valid (greater than current)');
-      }
-    }
-    
-    console.log('✅ Next button found:', nextButton);
-    console.log('   Tag:', nextButton.tagName);
-    console.log('   Text:', nextButton.textContent.trim());
-    console.log('   Href:', nextButton.href || 'N/A');
-    console.log('   Classes:', nextButton.className);
-    console.log('   ID:', nextButton.id || 'N/A');
-    
-    // Validate that this is actually a "next" button
-    const buttonTextLower = nextButton.textContent.trim().toLowerCase();
-    const hasNextIndicator = buttonTextLower.includes('next') || 
-                            buttonTextLower.includes('→') || 
-                            buttonTextLower.includes('›') || 
-                            buttonTextLower.includes('»') ||
-                            nextButton.getAttribute('aria-label')?.toLowerCase().includes('next') ||
-                            nextButton.classList.contains('next');
-    
-    if (!hasNextIndicator) {
-      console.warn('⚠️ Warning: Button does not seem to be a "next" button');
-      console.warn('   Text:', buttonTextLower);
-      console.warn('   This might navigate to wrong page!');
-    }
-    
-    // If it's a link, check the URL
-    if (nextButton.href) {
-      const currentPageNumber = getCurrentPageNumber();
-      console.log('   Current page number:', currentPageNumber);
-      
-      // Check if href contains page parameter
-      let hrefPageParam = null;
-      try {
-        const hrefUrl = new URL(nextButton.href);
-        hrefPageParam = hrefUrl.searchParams.get('page');
-      } catch (e) {
-        console.log('ℹ️ Button href is not a navigable URL — relying on click + DOM change detection');
-      }
-
-      if (hrefPageParam) {
-        const targetPage = parseInt(hrefPageParam);
-        console.log('   Target page from href:', targetPage);
-        
-        if (targetPage <= currentPageNumber) {
-          console.error('❌ ERROR: Next button points to page', targetPage, 'but we are on page', currentPageNumber);
-          console.error('   This would navigate backwards or to same page!');
-          console.error('   Href:', nextButton.href);
-          console.error('   Selector might be wrong. Looking for alternatives...');
-          
-          // Try to find correct next button
-          const allLinks = Array.from(document.querySelectorAll('a'));
-          const nextPageLink = allLinks.find(link => {
-            const url = new URL(link.href, window.location.href);
-            const pageParam = url.searchParams.get('page');
-            return pageParam && parseInt(pageParam) === currentPageNumber + 1;
-          });
-          
-          if (nextPageLink) {
-            console.log('✅ Found correct next page link:', nextPageLink.href);
-            console.log('   Using this instead!');
-            nextPageLink.click();
-            
-            // Continue with content detection using this corrected navigation
-            const itemSelector = listing?.itemSelector || 'a.product-card-link';
-            const firstItemBefore = document.querySelector(itemSelector);
-            const firstItemTextBefore = firstItemBefore?.textContent?.trim().substring(0, 50) || '';
-            
-            return await waitForPageChange(itemSelector, firstItemTextBefore);
-          } else {
-            console.error('❌ Could not find correct next page link');
-            return false;
-          }
-        } else {
-          console.log('✅ Target page is correct:', targetPage);
-        }
-      }
-    }
-    
-    // Check if button is disabled
-    if (nextButton.disabled || 
-        nextButton.classList.contains('disabled') ||
-        nextButton.getAttribute('aria-disabled') === 'true') {
-      console.log('❌ Next button is disabled');
-      return false;
-    }
-    
-    // Store current URL to detect navigation
-    const currentUrl = window.location.href;
-    console.log('   Current URL:', currentUrl);
-    
-    // Store first item's text to detect when content changes
-    const itemSelector = listing?.itemSelector || 'a.product-card-link';
-    console.log('   Item selector:', itemSelector);
-    const firstItemBefore = document.querySelector(itemSelector);
-    const firstItemTextBefore = firstItemBefore?.textContent?.trim().substring(0, 50) || '';
-    console.log('   First item before click:', firstItemTextBefore);
-    
-    // Click the button
-    console.log('🖱️ Clicking next button...');
-    nextButton.click();
-    
-    // Wait for page to change and return
-    return await waitForPageChange(itemSelector, firstItemTextBefore);
+    return true;
   }
   
   // Simple CSV export
