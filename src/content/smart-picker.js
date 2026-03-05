@@ -438,7 +438,8 @@ class SmartElementPicker {
     }
     
     // Try attributes that might identify the button
-    const attrs = ['data-testid', 'data-action', 'type', 'role', 'aria-label'];
+    // data-dt-idx is checked first so DataTables buttons get a specific selector
+    const attrs = ['data-dt-idx', 'data-testid', 'data-action', 'type', 'role', 'aria-label'];
     for (const attr of attrs) {
       const value = element.getAttribute(attr);
       if (value) {

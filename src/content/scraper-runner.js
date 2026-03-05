@@ -1254,7 +1254,8 @@
       if (el.disabled) return true;
       if (el.getAttribute('aria-disabled') === 'true') return true;
       if (el.classList.contains('disabled')) return true;
-      if (el.getAttribute('tabindex') === '-1') return true;
+      // Also check parent <li> — DataTables/Bootstrap put disabled class on <li>, not <a>
+      if (el.parentElement && el.parentElement.classList.contains('disabled')) return true;
       // inline style check (fast)
       if (el.style.pointerEvents === 'none') return true;
       // computed style check (catches CSS classes like .disabled { pointer-events:none })
@@ -1307,6 +1308,7 @@
         anyDtElem.parentElement?.parentElement ||
         document;
       const all = Array.from(container.querySelectorAll('[data-dt-idx]'));
+      console.log(`📋 DataTables: found ${all.length} [data-dt-idx] elements`);
 
       // Strategy 1: find the element that looks like "Next"
       const dtNext = all.find(el => looksLikeNext(el));
@@ -1315,12 +1317,16 @@
           console.log('🛑 DataTables "Next" is disabled — last page');
           return null;
         }
+        console.log('✅ DataTables strategy 1 (looksLikeNext):', dtNext.textContent.trim());
         return dtNext;
       }
 
-      // Strategy 2: find the active page number, return page+1 button
+      // Strategy 2: find the active page number (check both <a> AND parent <li>),
+      // then return page+1 button
       const active = all.find(el =>
-        el.classList.contains('current') || el.classList.contains('active')
+        el.classList.contains('current') || el.classList.contains('active') ||
+        el.parentElement?.classList.contains('current') ||
+        el.parentElement?.classList.contains('active')
       );
       if (active) {
         const n = parseInt(active.textContent.trim());
@@ -1328,9 +1334,27 @@
           const nextBtn = all.find(el =>
             parseInt(el.textContent.trim()) === n + 1 && !isDisabled(el)
           );
-          return nextBtn || null;
+          if (nextBtn) {
+            console.log('✅ DataTables strategy 2 (active+1):', nextBtn.textContent.trim());
+            return nextBtn;
+          }
         }
       }
+
+      // Strategy 3: the element with the highest data-dt-idx that is not a number
+      // is almost always the "Next" button (DataTables assigns indices left-to-right)
+      const maxIdx = Math.max(...all.map(el => parseInt(el.getAttribute('data-dt-idx') || '0')));
+      const maxEl = all.find(el => parseInt(el.getAttribute('data-dt-idx')) === maxIdx);
+      if (maxEl && !/^\d+$/.test(maxEl.textContent.trim())) {
+        if (isDisabled(maxEl)) {
+          console.log('🛑 DataTables max-index element is disabled — last page');
+          return null;
+        }
+        console.log('✅ DataTables strategy 3 (max-idx):', maxEl.textContent.trim(), 'idx=', maxIdx);
+        return maxEl;
+      }
+
+      console.warn('⚠️ resolveDataTablesNext: no Next button found among', all.map(e => `"${e.textContent.trim()}"[${e.getAttribute('data-dt-idx')}]`));
       return null;
     }
 
@@ -1355,9 +1379,12 @@
     // ── Universal next-button finder (priority order) ────────────────────────
 
     function findNextButton() {
+      console.log('🔎 findNextButton — nextButtonSelector:', JSON.stringify(pagination.nextButtonSelector));
+
       // 1. User-provided selector — highest priority
       if (pagination.nextButtonSelector) {
         const el = safeQuery(pagination.nextButtonSelector);
+        console.log('  strategy 1 el:', el ? `<${el.tagName} data-dt-idx="${el.getAttribute('data-dt-idx')}">${el.textContent.trim().slice(0,20)}</>` : 'null');
         if (el) {
           if (el.hasAttribute('data-dt-idx')) {
             console.log('📋 DataTables detected via user selector');
@@ -1369,24 +1396,26 @@
             return resolveNumberedNext(pagination.nextButtonSelector);
           }
           if (!isDisabled(el)) return el;
+          console.warn('  strategy 1: element is disabled');
         }
       }
 
       // 2. rel="next" — SEO/HTML standard, very reliable
       const relNext = document.querySelector('a[rel="next"]');
-      if (relNext && !isDisabled(relNext)) return relNext;
+      if (relNext && !isDisabled(relNext)) { console.log('  strategy 2 (rel=next)'); return relNext; }
 
       // 3. DataTables anywhere on the page
       const anyDt = document.querySelector('[data-dt-idx]');
       if (anyDt) {
-        console.log('📋 DataTables pagination detected on page');
+        console.log('📋 DataTables pagination detected on page (strategy 3)');
         return resolveDataTablesNext(anyDt);
       }
+      console.log('  strategy 3: no [data-dt-idx] found');
 
       // 4. aria-label / title containing "next"
       for (const el of document.querySelectorAll('[aria-label],[title]')) {
         const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
-        if (label.includes('next') && !isDisabled(el)) return el;
+        if (label.includes('next') && !isDisabled(el)) { console.log('  strategy 4 (aria-label/title)'); return el; }
       }
 
       // 5. Common CSS class patterns
@@ -1401,14 +1430,15 @@
       ];
       for (const sel of classSelectors) {
         const el = safeQuery(sel);
-        if (el && !isDisabled(el)) return el;
+        if (el && !isDisabled(el)) { console.log('  strategy 5 (class pattern):', sel); return el; }
       }
 
       // 6. Text scan — all anchors and buttons
       for (const el of document.querySelectorAll('a, button')) {
-        if (looksLikeNext(el) && !isDisabled(el)) return el;
+        if (looksLikeNext(el) && !isDisabled(el)) { console.log('  strategy 6 (text scan):', el.textContent.trim().slice(0,20)); return el; }
       }
 
+      console.warn('❌ findNextButton: exhausted all strategies, no button found');
       return null;
     }
 
