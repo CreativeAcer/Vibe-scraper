@@ -1141,6 +1141,61 @@
       }
     }
     
+    // DataTables / data-dt-idx pagination handling
+    // data-dt-idx is a keyboard-navigation index, not a page number.
+    // When the user's selector resolves to a data-dt-idx element we redirect to
+    // the real "Next" control so we always advance exactly one page at a time.
+    if (nextButton && nextButton.hasAttribute('data-dt-idx')) {
+      console.log('📋 DataTables pagination detected (data-dt-idx)');
+
+      // Walk up to find the pagination container
+      const container = nextButton.closest('.dataTables_paginate, [role="navigation"]')
+                      || nextButton.parentElement?.parentElement
+                      || document;
+
+      const allDtBtns = Array.from(container.querySelectorAll('[data-dt-idx]'));
+
+      // Strategy 1: find the element with class "next" — DataTables always uses this
+      const dtNext = allDtBtns.find(el =>
+        el.classList.contains('next') ||
+        el.textContent.trim().toLowerCase() === 'next' ||
+        (el.getAttribute('aria-label') || '').toLowerCase().includes('next')
+      );
+
+      if (dtNext) {
+        const isDisabled = dtNext.classList.contains('disabled') ||
+                           dtNext.getAttribute('aria-disabled') === 'true' ||
+                           dtNext.getAttribute('tabindex') === '-1';
+        if (isDisabled) {
+          console.log('🛑 DataTables "Next" is disabled — last page reached');
+          return false;
+        }
+        nextButton = dtNext;
+        console.log('✅ Using DataTables Next button:', nextButton.textContent.trim());
+      } else {
+        // Strategy 2: find the currently active page number, then click number+1
+        const activePage = allDtBtns.find(el =>
+          el.classList.contains('current') || el.classList.contains('active')
+        );
+        if (activePage) {
+          const currentNum = parseInt(activePage.textContent.trim());
+          if (!isNaN(currentNum)) {
+            const nextNumBtn = allDtBtns.find(el => {
+              const n = parseInt(el.textContent.trim());
+              return n === currentNum + 1 && !el.classList.contains('disabled');
+            });
+            if (nextNumBtn) {
+              nextButton = nextNumBtn;
+              console.log(`✅ Clicking DataTables page ${currentNum + 1}`);
+            } else {
+              console.log('🛑 No next page available in DataTables — last page reached');
+              return false;
+            }
+          }
+        }
+      }
+    }
+
     // Additional check: If button has a page number in href, it's probably wrong
     if (nextButton.href && pagination.nextButtonSelector) {
       const url = new URL(nextButton.href, window.location.href);
@@ -1253,9 +1308,14 @@
       console.log('   Current page number:', currentPageNumber);
       
       // Check if href contains page parameter
-      const hrefUrl = new URL(nextButton.href);
-      const hrefPageParam = hrefUrl.searchParams.get('page');
-      
+      let hrefPageParam = null;
+      try {
+        const hrefUrl = new URL(nextButton.href);
+        hrefPageParam = hrefUrl.searchParams.get('page');
+      } catch (e) {
+        console.log('ℹ️ Button href is not a navigable URL — relying on click + DOM change detection');
+      }
+
       if (hrefPageParam) {
         const targetPage = parseInt(hrefPageParam);
         console.log('   Target page from href:', targetPage);
