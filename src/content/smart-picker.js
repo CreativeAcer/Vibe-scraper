@@ -200,16 +200,16 @@ class SmartElementPicker {
 
   autoConfirmAllFields(analysis) {
     // Automatically select all detected fields with preview
+    // NOTE: DOM element references are intentionally excluded — they cannot be
+    // serialized by chrome.runtime.sendMessage (structured clone throws DataCloneError).
     const result = {
       itemSelector: analysis.itemSelector,
-      selectedElement: this.selectedElement, // Include the actual element
       fields: analysis.fields.map(f => ({
         name: f.name,
         selector: f.selector,
         attr: f.attr,
         type: f.type,
-        preview: f.preview, // Include preview for popup display
-        element: f.element // Include element reference
+        preview: f.preview
       }))
     };
 
@@ -378,8 +378,9 @@ class SmartElementPicker {
       }
     }
     
-    // Fallback: Use the specific selector but warn
+    // Fallback: generate a full CSS path so we never return undefined
     console.warn(`⚠️ Could only generate specific selector for 1 item`);
+    return this.generateCSSSelector(element);
   }
   
   generateSpecificSelector(element) {
@@ -461,8 +462,6 @@ class SmartElementPicker {
     const finalSelector = path.join(' > ');
     console.log(`✅ Using path selector: ${finalSelector}`);
     return finalSelector;
-    console.warn(`⚠️ Consider manually adjusting the selector to match all items`);
-    return this.generateCSSSelector(element);
   }
 
   generateParentSelector(element) {

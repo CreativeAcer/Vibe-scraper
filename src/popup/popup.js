@@ -798,6 +798,7 @@ let currentFields = [];
 
 function showJobEditor(currentUrl) {
   document.getElementById('no-jobs-message').classList.add('hidden');
+  document.getElementById('jobs-list').classList.add('hidden');
   document.getElementById('job-editor').classList.remove('hidden');
   document.getElementById('quick-start-url').value = currentUrl || '';
   document.getElementById('quick-job-id').value = '';
@@ -814,8 +815,14 @@ function showJobEditor(currentUrl) {
 
 function hideJobEditor() {
   document.getElementById('job-editor').classList.add('hidden');
-  document.getElementById('no-jobs-message').classList.remove('hidden');
   currentFields = [];
+
+  // Restore the correct view based on whether jobs already exist
+  if (jobs.length > 0) {
+    showJobsList();
+  } else {
+    showNoJobsMessage();
+  }
 }
 
 async function activateQuickSmartPicker() {
