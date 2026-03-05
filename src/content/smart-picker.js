@@ -693,10 +693,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
         });
       } else {
-        // For regular field detection
+        // For regular field detection — strip DOM refs before sending
         chrome.runtime.sendMessage({
           type: 'FIELDS_DETECTED',
-          data: result
+          data: {
+            itemSelector: result.itemSelector,
+            fields: (result.fields || []).map(f => ({
+              name: f.name,
+              selector: f.selector,
+              attr: f.attr,
+              type: f.type,
+              preview: f.preview
+            }))
+          }
         });
       }
     }, {

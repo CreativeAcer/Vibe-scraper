@@ -852,52 +852,31 @@ async function activateQuickSmartPicker() {
     // Wait for script to load
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    // Activate Smart Picker on the WEBPAGE
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: () => {
-        if (typeof window.SmartElementPicker === 'undefined') {
-          alert('Smart Picker failed to load. Please try again.');
-          return;
-        }
-
-        const picker = new window.SmartElementPicker();
-        picker.activate((result) => {
-          // Strip DOM element refs before sending — chrome.runtime.sendMessage
-          // uses structured clone which cannot serialize DOM nodes (DataCloneError).
-          chrome.runtime.sendMessage({
-            type: 'SMART_PICKER_RESULT',
-            data: {
-              itemSelector: result.itemSelector,
-              fields: (result.fields || []).map(f => ({
-                name: f.name,
-                selector: f.selector,
-                attr: f.attr,
-                type: f.type,
-                preview: f.preview
-              }))
-            }
-          });
-        }, { skipPanel: true }); // Skip panel, auto-select all fields
-      }
+    // Activate Smart Picker via message — same approach as pagination detect.
+    // The content script handles the picker, strips DOM refs, and sends FIELDS_DETECTED
+    // back. This is more reliable than executeScript+func for side-panel message delivery.
+    await chrome.tabs.sendMessage(tab.id, {
+      type: 'ACTIVATE_SMART_PICKER',
+      skipPanel: true
+      // singleElement is intentionally absent — we want full field detection
     });
 
     // Show feedback IN POPUP
     showStatus('✅ Smart Picker activated on page! Click an item on the website.', 'success');
-    
+
     // Show persistent status in form
     document.getElementById('picker-status').classList.remove('hidden');
-    
+
     // Add instruction text
     document.getElementById('quick-smart-picker-btn').textContent = '⏳ Waiting...';
     document.getElementById('quick-smart-picker-btn').disabled = true;
 
     // Listen for result from the webpage
     const messageListener = (message) => {
-      if (message.type === 'SMART_PICKER_RESULT') {
+      if (message.type === 'FIELDS_DETECTED') {
         handleQuickPickerResult(message.data);
         chrome.runtime.onMessage.removeListener(messageListener);
-        
+
         // Reset button
         document.getElementById('quick-smart-picker-btn').textContent = '🎯 Smart Picker';
         document.getElementById('quick-smart-picker-btn').disabled = false;
