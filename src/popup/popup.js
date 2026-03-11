@@ -107,6 +107,12 @@ function setupEventListeners() {
   document.getElementById('server-help-close').addEventListener('click', () => {
     document.getElementById('server-help').classList.add('hidden');
   });
+
+  // Retry button — re-runs checkServerStatus (useful after running start.bat/start.sh manually)
+  document.getElementById('server-retry-btn').addEventListener('click', async () => {
+    document.getElementById('server-help').classList.add('hidden');
+    await checkServerStatus(state);
+  });
 }
 
 // ── Global message listener ───────────────────────────────────────────────────

@@ -12,30 +12,57 @@ An optional local server that gives the Vibe Scraper extension full scraping pow
 | Proxy support | ❌ | Configurable |
 | Large datasets | Limited by browser memory | Streams to disk |
 
+---
+
+## Installation (one-time, no terminal needed after)
+
+The extension can start the server **automatically** once you run the installer once.
+
+### Windows
+1. Open the `vibe-scraper-server\` folder in Explorer
+2. Double-click **`install.bat`**
+3. Restart Chrome
+
+### Mac / Linux
+```bash
+cd vibe-scraper-server
+./install.sh     # or: python3 install.py
+```
+Then restart Chrome.
+
+The installer:
+- Installs Python dependencies (`pip install -r requirements.txt`)
+- Installs Playwright's Chromium browser (one-time, ~300 MB)
+- Detects your Vibe Scraper extension ID automatically
+- Registers a native messaging host so Chrome can launch the server
+
+After that, opening the extension automatically starts the server in the background — no terminal required.
+
+---
+
+## Manual start (no install required)
+
+If you prefer not to run the installer, you can start the server manually each session:
+
+### Windows
+Double-click **`start.bat`**
+
+### Mac / Linux
+```bash
+cd vibe-scraper-server
+./start.sh
+```
+
+The server starts on **http://localhost:7823**.
+
+---
+
 ## Requirements
 
 - Python 3.10 or newer
 - pip
 
-## Setup
-
-```bash
-# 1. Navigate to the server directory
-cd vibe-scraper-server
-
-# 2. Install dependencies (one-time)
-pip install -r requirements.txt
-
-# 3. Install Playwright's browser binaries (one-time, ~300 MB)
-playwright install chromium
-
-# 4. Start the server
-python server.py
-```
-
-The server starts on **http://localhost:7823**.
-
-Open the Vibe Scraper extension — you should see a green **"Local server connected"** indicator. If it shows orange, make sure the server is running.
+---
 
 ## Usage
 
@@ -43,6 +70,8 @@ Open the Vibe Scraper extension — you should see a green **"Local server conne
 2. Click **"🖥️ Scrape via Server"** instead of "Start Scraping".
 3. The extension sends the job config to the server and polls for progress.
 4. When complete, a CSV file downloads automatically.
+
+---
 
 ## API
 
@@ -53,6 +82,8 @@ Open the Vibe Scraper extension — you should see a green **"Local server conne
 | GET | `/status/{job_id}` | Poll for progress |
 | GET | `/download/{job_id}?format=csv\|json` | Download results |
 | DELETE | `/jobs/{job_id}` | Cancel a running job |
+
+---
 
 ## Job config format
 
@@ -86,8 +117,28 @@ The server accepts the same JSON format as the extension stores internally:
 
 See `../config/example-config.json` for a full example.
 
+---
+
+## How auto-start works
+
+```
+Extension popup
+    │
+    │  chrome.runtime.sendNativeMessage('com.vibescaper.server', {command:'start'})
+    ▼
+native_host.py  ← Chrome launches this (registered by install.py)
+    │
+    │  subprocess.Popen([python, 'server.py'], start_new_session=True)
+    ▼
+server.py  (FastAPI on port 7823, runs independently, survives host exit)
+```
+
+`native_host.py` checks `/health` first — it only spawns a new process if the server isn't already running.
+
+---
+
 ## Notes
 
 - The server only listens on `127.0.0.1` (localhost). It is not accessible from other machines.
 - Job data is stored in memory only — it is lost when the server restarts.
-- Stop the server at any time with **Ctrl+C**.
+- Stop the server at any time with **Ctrl+C** (if started manually), or kill the `server.py` process.

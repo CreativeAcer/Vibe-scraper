@@ -1086,6 +1086,13 @@ input:checked + .toggle-slider:before {
   margin-top: 4px;
 }
 
+.server-help-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 #server-scrape-btn {
   background: #e3f2fd;
   color: #1565c0;

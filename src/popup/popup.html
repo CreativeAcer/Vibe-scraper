@@ -25,17 +25,44 @@
       </div>
     </div>
 
-    <!-- Server setup instructions (shown on demand) -->
+    <!-- Server setup instructions (shown on demand, OS-specific) -->
     <div id="server-help" class="server-help hidden">
-      <strong>Start the local server:</strong>
-      <ol>
-        <li>Open a terminal</li>
-        <li><code>cd vibe-scraper-server</code></li>
-        <li><code>pip install -r requirements.txt</code> <em>(first time only)</em></li>
-        <li><code>python server.py</code></li>
-      </ol>
-      <small>Requires Python 3.10+. The server runs on <code>localhost:7823</code>.</small>
-      <button id="server-help-close" class="link-btn">✕ Close</button>
+      <strong>One-time setup:</strong>
+
+      <div id="setup-windows" class="hidden">
+        <ol>
+          <li>Open <code>vibe-scraper-server\</code> in Explorer</li>
+          <li>Double-click <code>install.bat</code></li>
+          <li>Restart Chrome</li>
+        </ol>
+        <small>Or run <code>start.bat</code> each time (no auto-start).</small>
+      </div>
+
+      <div id="setup-mac" class="hidden">
+        <ol>
+          <li>Open Terminal</li>
+          <li><code>cd vibe-scraper-server</code></li>
+          <li><code>./install.sh</code></li>
+          <li>Restart Chrome</li>
+        </ol>
+        <small>Or run <code>./start.sh</code> each time (no auto-start).</small>
+      </div>
+
+      <div id="setup-linux" class="hidden">
+        <ol>
+          <li>Open a terminal</li>
+          <li><code>cd vibe-scraper-server</code></li>
+          <li><code>./install.sh</code></li>
+          <li>Restart Chrome</li>
+        </ol>
+        <small>Or run <code>./start.sh</code> each time (no auto-start).</small>
+      </div>
+
+      <small>Requires Python 3.10+.</small>
+      <div class="server-help-actions">
+        <button id="server-retry-btn" class="secondary-btn">↺ Retry connection</button>
+        <button id="server-help-close" class="link-btn">✕ Close</button>
+      </div>
     </div>
 
     <div id="no-jobs-message" class="message">
