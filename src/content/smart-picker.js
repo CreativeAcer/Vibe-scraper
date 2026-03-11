@@ -411,85 +411,8 @@ class SmartElementPicker {
   }
   
   generateSpecificSelector(element) {
-    // Generate a selector for THIS SPECIFIC element (for buttons, not items)
-    const tagName = element.tagName.toLowerCase();
-    const parts = [tagName];
-    
-    console.log('🎯 Generating specific selector for single element...');
-    
-    // Try ID first (most specific)
-    if (element.id) {
-      const selector = `#${element.id}`;
-      console.log(`✅ Using ID: ${selector}`);
-      return selector;
-    }
-    
-    // Try classes
-    if (element.className && typeof element.className === 'string') {
-      const classes = element.className.split(' ')
-        .filter(c => c.trim() && !c.includes(':'))
-        .slice(0, 2); // Use first 2 classes
-      
-      if (classes.length > 0) {
-        const selector = `${tagName}.${classes.join('.')}`;
-        console.log(`✅ Using classes: ${selector}`);
-        return selector;
-      }
-    }
-    
-    // Try attributes that might identify the button
-    // data-dt-idx is checked first so DataTables buttons get a specific selector
-    const attrs = ['data-dt-idx', 'data-testid', 'data-action', 'type', 'role', 'aria-label'];
-    for (const attr of attrs) {
-      const value = element.getAttribute(attr);
-      if (value) {
-        const selector = `${tagName}[${attr}="${value}"]`;
-        console.log(`✅ Using attribute: ${selector}`);
-        return selector;
-      }
-    }
-    
-    // Try text content for buttons
-    if (tagName === 'button' || tagName === 'a') {
-      const text = element.textContent.trim();
-      if (text && text.length < 50) {
-        // Create selector with :contains-like approach using XPath alternative
-        const selector = `${tagName}`;
-        console.log(`✅ Using tag with text hint: ${selector} (text: "${text}")`);
-        return selector;
-      }
-    }
-    
-    // Fallback: nth-child approach
-    let current = element;
-    const path = [];
-    
-    while (current && current !== document.body) {
-      let selector = current.tagName.toLowerCase();
-      
-      if (current.id) {
-        path.unshift(`#${current.id}`);
-        break;
-      }
-      
-      if (current.className && typeof current.className === 'string') {
-        const classes = current.className.split(' ')
-          .filter(c => c.trim() && !c.includes(':'))
-          .slice(0, 1);
-        if (classes.length > 0) {
-          selector += `.${classes[0]}`;
-        }
-      }
-      
-      path.unshift(selector);
-      current = current.parentElement;
-      
-      if (path.length >= 3) break; // Limit depth
-    }
-    
-    const finalSelector = path.join(' > ');
-    console.log(`✅ Using path selector: ${finalSelector}`);
-    return finalSelector;
+    // Delegates to the shared utility injected by selector-utils.js
+    return window.__vibeUtils.generateSpecificSelector(element);
   }
 
   generateParentSelector(element) {

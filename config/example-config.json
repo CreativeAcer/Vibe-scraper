@@ -2,27 +2,17 @@
   "version": "1.0",
   "jobId": "example-ecommerce-scraper",
   "startUrl": "https://example-shop.com/products?page=1",
-  "auth": {
-    "mode": "sessionReuse"
-  },
   "pagination": {
+    "enabled": true,
     "type": "queryParam",
     "param": "page",
-    "start": 1,
     "maxPages": 10,
-    "delayMs": {
-      "min": 1500,
-      "max": 3000
-    },
-    "stopOnNoNewItems": true
+    "delayMs": 2000
   },
   "infiniteScroll": {
     "enabled": false,
     "maxScrolls": 20,
-    "delayMs": {
-      "min": 1000,
-      "max": 2000
-    }
+    "delayMs": 3000
   },
   "listing": {
     "itemSelector": ".product-card",
@@ -38,19 +28,7 @@
         "name": "price",
         "selector": ".product-price",
         "attr": "text",
-        "type": "number",
-        "transform": {
-          "remove": ["€", ",", " "]
-        }
-      },
-      {
-        "name": "original_price",
-        "selector": ".original-price",
-        "attr": "text",
-        "type": "number",
-        "transform": {
-          "remove": ["€", ",", " "]
-        }
+        "type": "string"
       },
       {
         "name": "url",
@@ -69,13 +47,7 @@
         "name": "rating",
         "selector": ".rating-value",
         "attr": "text",
-        "type": "number"
-      },
-      {
-        "name": "in_stock",
-        "selector": ".stock-indicator",
-        "attr": "text",
-        "type": "boolean"
+        "type": "string"
       },
       {
         "name": "category",
@@ -83,58 +55,14 @@
         "attr": "text",
         "type": "string"
       }
-    ],
-    "detail": {
-      "followLink": {
-        "selector": "a.product-link",
-        "attr": "href"
-      },
-      "fields": [
-        {
-          "name": "sku",
-          "selector": ".product-sku",
-          "attr": "text",
-          "type": "string"
-        },
-        {
-          "name": "description",
-          "selector": ".product-description",
-          "attr": "html",
-          "type": "string"
-        },
-        {
-          "name": "specifications",
-          "selector": ".specs-table",
-          "attr": "html",
-          "type": "string"
-        },
-        {
-          "name": "reviews_count",
-          "selector": ".reviews-count",
-          "attr": "text",
-          "type": "number"
-        }
-      ]
-    },
-    "dedupe": {
-      "keys": ["url", "sku"]
-    }
-  },
-  "delays": {
-    "perActionMs": {
-      "min": 500,
-      "max": 1500
-    }
+    ]
   },
   "export": {
     "format": "csv",
     "filename": "products-export.csv",
-    "bom": true
+    "includeUtf8Bom": true
   },
   "limits": {
     "maxItems": 1000
-  },
-  "compliance": {
-    "requireUserConsentPerHost": true
   }
 }

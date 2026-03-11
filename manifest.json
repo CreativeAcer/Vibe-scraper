@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Vibe Scraper",
   "version": "1.0.0",
-  "description": "Smart web scraper with button/query pagination, infinite scroll, and load more support",
+  "description": "Smart web scraper with button/query pagination, infinite scroll, load more, and optional local server for JS-heavy sites",
   "icons": {
     "16": "public/icons/icon16.png",
     "48": "public/icons/icon48.png",
@@ -14,7 +14,8 @@
     "scripting",
     "tabs",
     "activeTab",
-    "sidePanel"
+    "sidePanel",
+    "cookies"
   ],
   "host_permissions": ["<all_urls>"],
   "background": {

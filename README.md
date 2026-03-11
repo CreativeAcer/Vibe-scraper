@@ -57,6 +57,33 @@ A powerful Chrome extension for web scraping with multiple pagination modes, sma
 
 ---
 
+## 🖥️ Local Server (Optional)
+
+The extension works entirely in the browser by default. For JS-heavy sites, large datasets, or scraping that needs to run in the background, an optional local Python server is included.
+
+| | Extension only | Extension + Server |
+|---|---|---|
+| Static HTML sites | ✅ | ✅ |
+| JS-rendered SPAs | ❌ | ✅ (Playwright) |
+| Background scraping | ❌ | ✅ |
+
+### Setup
+
+```bash
+cd vibe-scraper-server
+pip install -r requirements.txt
+playwright install chromium   # one-time, ~300 MB
+python server.py
+```
+
+Open the extension — a green **"Local server connected"** badge will appear. If it shows orange, the server is not running. Click **"How to start →"** for instructions.
+
+Then use **"🖥️ Scrape via Server"** alongside the usual Start Scraping button.
+
+See [`vibe-scraper-server/README.md`](vibe-scraper-server/README.md) for full details.
+
+---
+
 ## 📖 Documentation
 
 ### Scraping Modes Explained
@@ -223,29 +250,50 @@ The Smart Picker automatically detects:
 
 ### Architecture
 
+**Browser-only mode** (default — no setup required):
+
 ```
-┌─────────────────────────────────────┐
-│ Sidebar (popup.html/popup.js)      │
-│ - Quick job creation                │
-│ - User interface                    │
-└─────────────┬───────────────────────┘
-              │
-              ↓ (chrome.tabs.sendMessage)
-┌─────────────────────────────────────┐
-│ Content Script (scraper-runner.js)  │
-│ - DOM access                         │
-│ - Smart Picker                       │
-│ - Item extraction                    │
-│ - Query param: HTML parsing          │
-└─────────────┬───────────────────────┘
-              │
-              ↓ (chrome.runtime.sendMessage)
-┌─────────────────────────────────────┐
-│ Background (service-worker.js)      │
-│ - Job management                     │
-│ - Query param: HTTP fetching         │
-│ - Message routing                    │
-└─────────────────────────────────────┘
+┌────────────────────────────────────┐
+│ Sidebar (popup.html)               │
+│ popup.js / ui.js / scraping.js     │
+│ editor.js / state.js               │
+└──────────────┬─────────────────────┘
+               │ chrome.tabs.sendMessage
+               ↓
+┌────────────────────────────────────┐
+│ Content Scripts                    │
+│ scraper-runner.js  ← main engine   │
+│ smart-picker.js    ← field detect  │
+│ selector-utils.js  ← shared util   │
+│ pagination-detector.js             │
+└──────────────┬─────────────────────┘
+               │ chrome.runtime.sendMessage
+               ↓
+┌────────────────────────────────────┐
+│ Background (service-worker.js)     │
+│ - Job management & message routing │
+│ - HTTP fetching for query-param    │
+└────────────────────────────────────┘
+```
+
+**With local server** (optional — enables JS-heavy sites):
+
+```
+┌────────────────────────────────────┐
+│ Sidebar (popup.html)               │
+│ "🖥️ Scrape via Server" button      │
+└──────────────┬─────────────────────┘
+               │ POST /scrape  (job config JSON)
+               │ GET  /status/{id}  (polling)
+               │ GET  /download/{id}
+               ↓
+┌────────────────────────────────────┐
+│ Local Python Server (port 7823)    │
+│ FastAPI + uvicorn                  │
+├────────────────────────────────────┤
+│ httpx + BeautifulSoup (static HTML)│
+│ Playwright (JS-rendered SPAs)      │
+└────────────────────────────────────┘
 ```
 
 ### Query Parameter Pagination - How It Works
@@ -280,23 +328,36 @@ The Smart Picker automatically detects:
 
 ```
 Vibe-scraper/
-├── manifest.json              # Extension configuration
+├── manifest.json                  # Extension configuration (MV3)
+├── config/
+│   └── example-config.json        # Example job config
 ├── src/
-│   ├── popup/                 # Sidebar UI
+│   ├── popup/                     # Sidebar UI (ES modules)
 │   │   ├── popup.html
-│   │   ├── popup.js          # Job creation, Smart Picker
-│   │   └── popup.css         # Compact 380px design
-│   ├── options/               # Settings page
+│   │   ├── popup.js               # Entry point — wires events
+│   │   ├── state.js               # Shared mutable state
+│   │   ├── ui.js                  # DOM helpers
+│   │   ├── scraping.js            # Start/stop/server scraping
+│   │   ├── editor.js              # Job editor + Smart Picker
+│   │   └── popup.css
+│   ├── options/                   # Settings page
 │   │   ├── options.html
 │   │   ├── options.js
 │   │   └── options.css
-│   ├── content/               # Content scripts
-│   │   ├── scraper-runner.js # Main scraping engine
-│   │   └── smart-picker.js   # Smart field detection
+│   ├── content/                   # Content scripts
+│   │   ├── scraper-runner.js      # Main scraping engine
+│   │   ├── smart-picker.js        # Smart field detection
+│   │   ├── selector-utils.js      # Shared CSS selector utility
+│   │   └── pagination-detector.js # Auto-detect pagination type
 │   └── background/
-│       └── service-worker.js # Background tasks
+│       └── service-worker.js      # Background tasks & HTTP fetching
+├── vibe-scraper-server/           # Optional local Python server
+│   ├── server.py                  # FastAPI app (port 7823)
+│   ├── scraper.py                 # httpx + Playwright scraping engine
+│   ├── requirements.txt
+│   └── README.md
 └── public/
-    └── icons/                 # Extension icons
+    └── icons/
 ```
 
 ---
@@ -427,18 +488,22 @@ MIT License - see LICENSE file for details
 
 ## 🐛 Known Limitations
 
-1. **Query Parameter Pagination**:
+1. **Query Parameter Pagination (browser mode)**:
    - Only works with static HTML
    - Won't work on SPAs requiring JavaScript
-   - Use Button mode for SPAs
+   - **Solution**: Use Button mode, or use the local server which handles JS rendering
 
 2. **Smart Picker**:
    - Works best with consistent HTML structure
    - May need manual adjustment for complex layouts
 
-3. **CORS Restrictions**:
-   - Some sites may block background fetch requests
-   - Button pagination will work as alternative
+3. **CORS Restrictions (browser mode)**:
+   - Some sites block background fetch requests
+   - **Solution**: Use Button pagination, or use the local server (no CORS restrictions)
+
+4. **No authentication support**:
+   - Login automation and session handling are not implemented
+   - Start the scrape from a page where you're already logged in
 
 ---
 

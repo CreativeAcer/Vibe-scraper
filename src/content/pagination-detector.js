@@ -4,7 +4,8 @@
 if (typeof window.__VS_PAGINATION_DETECTOR_LOADED__ === 'undefined') {
   window.__VS_PAGINATION_DETECTOR_LOADED__ = true;
 
-  // ── Helpers (copied from scraper-runner.js / smart-picker.js) ──────────────
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // generateSpecificSelector is provided by selector-utils.js (injected first)
 
   function safeQuery(sel, root) {
     try { return (root || document).querySelector(sel); } catch { return null; }
@@ -42,37 +43,6 @@ if (typeof window.__VS_PAGINATION_DETECTOR_LOADED__ === 'undefined') {
       el.classList.contains('page-next') ||
       el.classList.contains('pager-next')
     );
-  }
-
-  function generateSpecificSelector(element) {
-    const tagName = element.tagName.toLowerCase();
-    if (element.id) return `#${element.id}`;
-    if (element.className && typeof element.className === 'string') {
-      const classes = element.className.split(' ')
-        .filter(c => c.trim() && !c.includes(':'))
-        .slice(0, 2);
-      if (classes.length > 0) return `${tagName}.${classes.join('.')}`;
-    }
-    const attrs = ['data-dt-idx', 'data-testid', 'data-action', 'type', 'role', 'aria-label'];
-    for (const attr of attrs) {
-      const value = element.getAttribute(attr);
-      if (value) return `${tagName}[${attr}="${value}"]`;
-    }
-    // Path fallback
-    let current = element;
-    const path = [];
-    while (current && current !== document.body) {
-      let sel = current.tagName.toLowerCase();
-      if (current.id) { path.unshift(`#${current.id}`); break; }
-      if (current.className && typeof current.className === 'string') {
-        const cls = current.className.split(' ').filter(c => c.trim() && !c.includes(':'));
-        if (cls.length > 0) sel += `.${cls[0]}`;
-      }
-      path.unshift(sel);
-      current = current.parentElement;
-      if (path.length >= 3) break;
-    }
-    return path.join(' > ');
   }
 
   // ── Utilities ───────────────────────────────────────────────────────────────
@@ -412,9 +382,9 @@ if (typeof window.__VS_PAGINATION_DETECTOR_LOADED__ === 'undefined') {
     } else if (best.type === 'button') {
       const nextEl = safeQueryAll('a, button')
         .find(el => looksLikeNext(el) && !isDisabled(el));
-      if (nextEl) config.nextButtonSelector = generateSpecificSelector(nextEl);
+      if (nextEl) config.nextButtonSelector = window.__vibeUtils.generateSpecificSelector(nextEl);
     } else if (best.type === 'load-more') {
-      if (loadMoreEl) config.loadMoreSelector = generateSpecificSelector(loadMoreEl);
+      if (loadMoreEl) config.loadMoreSelector = window.__vibeUtils.generateSpecificSelector(loadMoreEl);
     }
 
     console.log('🔍 Pagination detection results:', ranked.map(r => `${r.type}:${r.score}`).join(', '));
