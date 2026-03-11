@@ -10,16 +10,64 @@ const SERVER_URL = 'http://localhost:7823';
 // ── Server health check ───────────────────────────────────────────────────────
 
 export async function checkServerStatus(state) {
-  try {
-    const resp = await fetch(`${SERVER_URL}/health`, {
-      signal: AbortSignal.timeout(2000),
-    });
-    state.serverUp = resp.ok;
-  } catch {
-    state.serverUp = false;
+  // 1. Already running? Show green immediately.
+  if (await pingServer()) {
+    state.serverUp = true;
+    showServerBanner(true);
+    showServerScrapeButton(true);
+    return;
   }
-  showServerBanner(state.serverUp);
-  showServerScrapeButton(state.serverUp);
+
+  // 2. Try to auto-start via native messaging (requires one-time install.py run).
+  try {
+    await sendNativeMessage({ command: 'start' });
+    // Poll up to 4 s for the server process to bind the port.
+    for (let i = 0; i < 8; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      if (await pingServer()) {
+        state.serverUp = true;
+        showServerBanner(true);
+        showServerScrapeButton(true);
+        return;
+      }
+    }
+  } catch {
+    // Native host not installed — fall through to show setup instructions.
+  }
+
+  state.serverUp = false;
+  showServerBanner(false, detectOS());
+  showServerScrapeButton(false);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function sendNativeMessage(msg) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendNativeMessage('com.vibescaper.server', msg, (resp) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve(resp);
+      }
+    });
+  });
+}
+
+async function pingServer() {
+  try {
+    const r = await fetch(`${SERVER_URL}/health`, { signal: AbortSignal.timeout(1500) });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
+function detectOS() {
+  const p = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
+  if (p.includes('win')) return 'windows';
+  if (p.includes('mac')) return 'mac';
+  return 'linux';
 }
 
 // ── Browser scraping ──────────────────────────────────────────────────────────

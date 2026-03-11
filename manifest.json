@@ -15,7 +15,8 @@
     "tabs",
     "activeTab",
     "sidePanel",
-    "cookies"
+    "cookies",
+    "nativeMessaging"
   ],
   "host_permissions": ["<all_urls>"],
   "background": {

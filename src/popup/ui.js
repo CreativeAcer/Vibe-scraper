@@ -115,7 +115,7 @@ export function resetTimerDisplay() {
 
 // ── Server status banner ─────────────────────────────────────────────────────
 
-export function showServerBanner(isUp) {
+export function showServerBanner(isUp, os) {
   const banner = document.getElementById('server-banner');
   const upEl   = document.getElementById('server-up');
   const downEl = document.getElementById('server-down');
@@ -128,6 +128,16 @@ export function showServerBanner(isUp) {
   } else {
     upEl.classList.add('hidden');
     downEl.classList.remove('hidden');
+
+    // Pre-select the correct OS panel so it's ready when the user clicks "How to start →"
+    if (os) {
+      for (const id of ['setup-windows', 'setup-mac', 'setup-linux']) {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      }
+      const target = document.getElementById(`setup-${os}`);
+      if (target) target.classList.remove('hidden');
+    }
   }
 }
 
