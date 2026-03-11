@@ -13,6 +13,31 @@
       <button id="open-options" title="Open Settings">⚙️</button>
     </header>
 
+    <!-- Local server status banner (populated by scraping.js checkServerStatus) -->
+    <div id="server-banner" class="server-banner hidden">
+      <div id="server-up" class="hidden">
+        <span class="server-dot online"></span> Local server connected
+      </div>
+      <div id="server-down">
+        <span class="server-dot offline"></span>
+        <span>Local server not running</span>
+        <button id="server-help-btn" class="link-btn">How to start →</button>
+      </div>
+    </div>
+
+    <!-- Server setup instructions (shown on demand) -->
+    <div id="server-help" class="server-help hidden">
+      <strong>Start the local server:</strong>
+      <ol>
+        <li>Open a terminal</li>
+        <li><code>cd vibe-scraper-server</code></li>
+        <li><code>pip install -r requirements.txt</code> <em>(first time only)</em></li>
+        <li><code>python server.py</code></li>
+      </ol>
+      <small>Requires Python 3.10+. The server runs on <code>localhost:7823</code>.</small>
+      <button id="server-help-close" class="link-btn">✕ Close</button>
+    </div>
+
     <div id="no-jobs-message" class="message">
       <p>No scraping jobs configured.</p>
       <button id="create-job-btn" class="primary-btn">Create Your First Job</button>
@@ -243,6 +268,7 @@
       <div class="action-buttons">
         <button id="start-btn" class="primary-btn">Start Scraping</button>
         <button id="stop-btn" class="secondary-btn hidden">Stop</button>
+        <button id="server-scrape-btn" class="secondary-btn hidden" title="Scrape using the local Python server (supports JS-heavy sites)">🖥️ Scrape via Server</button>
       </div>
 
       <div id="logs-section" class="logs-section">

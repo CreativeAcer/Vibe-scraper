@@ -73,11 +73,6 @@ async function handleMessage(message, sender, sendResponse) {
         sendResponse({ success: true, logs });
         break;
 
-      case 'SCRAPE_DETAIL_PAGE':
-        const detailData = await scrapeDetailPage(message.url, message.fields, message.jobId);
-        sendResponse({ success: true, data: detailData });
-        break;
-
       case 'NAVIGATE_TO_URL':
         await navigateToUrl(message.url, sender.tab?.id);
         sendResponse({ success: true });
@@ -398,49 +393,6 @@ function handleScrapingFailed(jobId, error) {
 }
 
 /**
- * Scrape detail page
- */
-async function scrapeDetailPage(url, fields, jobId) {
-  // Create a new tab for detail scraping
-  const tab = await chrome.tabs.create({ url, active: false });
-
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      chrome.tabs.remove(tab.id);
-      reject(new Error('Detail page scraping timeout'));
-    }, 30000);
-
-    chrome.tabs.onUpdated.addListener(async function listener(tabId, changeInfo) {
-      if (tabId === tab.id && changeInfo.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
-        clearTimeout(timeout);
-
-        try {
-          // Inject and execute scraping
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['src/core/scraping-engine.js']
-          });
-
-          const result = await chrome.tabs.sendMessage(tab.id, {
-            type: 'SCRAPE_DETAIL_FIELDS',
-            fields,
-            jobId
-          });
-
-          // Close tab
-          await chrome.tabs.remove(tab.id);
-          resolve(result.data);
-        } catch (error) {
-          await chrome.tabs.remove(tab.id);
-          reject(error);
-        }
-      }
-    });
-  });
-}
-
-/**
  * Navigate to URL
  */
 async function navigateToUrl(url, tabId) {
@@ -501,28 +453,28 @@ chrome.action.onClicked.addListener(async (tab) => {
  */
 async function scrapeQueryParamPage(url, config) {
   console.log('📄 [BACKGROUND] Fetching page:', url);
-  
+
   try {
-    // Background script just fetches the HTML
-    // Content script will parse it (since it has DOM APIs)
-    console.log('📄 [BACKGROUND] Starting fetch...');
-    const response = await fetch(url);
-    
+    // credentials: 'include' forwards the user's existing session cookies so
+    // authenticated sites work without any extra login flow.
+    const response = await fetch(url, {
+      credentials: 'include',
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VibeScraper/1.0)' }
+    });
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
     const html = await response.text();
     console.log('✅ [BACKGROUND] Page fetched, HTML length:', html.length);
-    console.log('✅ [BACKGROUND] Returning HTML to content script for parsing');
-    
-    // Return HTML to content script - it will parse it
+
     return {
       success: true,
       html: html,
       url: url
     };
-    
+
   } catch (error) {
     console.error('❌ [BACKGROUND] Error fetching page:', error);
     return {
